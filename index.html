@@ -1,12 +1,112 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SchedSlate</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0A0E17" />
+    <meta name="description" content="SchedSlate — a dark-mode visual schedule maker. Block out your week, day or month in 30-minute slots. No account needed." />
+    <title>SchedSlate · Visual Schedule Maker</title>
     <link rel="icon" type="image/png" href="./SchedSlate%20Favicon.png" />
+    <link rel="apple-touch-icon" href="./SchedSlate%20Favicon.png" />
+    <link rel="preload" href="./assets/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="./assets/styles.css" />
 </head>
 <body>
-    
+    <a class="skip-link" href="#schedule-panel" data-i18n="skipToSchedule">Skip to schedule</a>
+    <div class="ambient" aria-hidden="true"></div>
+
+    <div class="app-shell">
+        <header class="topbar">
+            <a class="brand" href="./" aria-label="SchedSlate">
+                <img class="brand-mark" src="./SchedSlate%20Favicon.png" alt="" width="38" height="38" />
+                <span class="brand-copy">
+                    <span class="brand-name">SchedSlate</span>
+                    <span class="brand-tag" data-i18n="brandTagline">Visual time blocking</span>
+                </span>
+            </a>
+
+            <div class="topbar-actions">
+                <div class="segmented" id="view-switch" role="group" aria-label="Schedule view" data-i18n-aria="scheduleView">
+                    <button type="button" class="seg" data-view="day" aria-pressed="false">
+                        <span class="seg-full" data-i18n="viewDay">Daily</span>
+                        <span class="seg-mini" data-i18n="viewDayShort">Day</span>
+                    </button>
+                    <button type="button" class="seg" data-view="week" aria-pressed="true">
+                        <span class="seg-full" data-i18n="viewWeek">Weekly</span>
+                        <span class="seg-mini" data-i18n="viewWeekShort">Week</span>
+                    </button>
+                    <button type="button" class="seg" data-view="month" aria-pressed="false">
+                        <span class="seg-full" data-i18n="viewMonth">Monthly</span>
+                        <span class="seg-mini" data-i18n="viewMonthShort">Month</span>
+                    </button>
+                </div>
+
+                <button type="button" class="btn btn-primary" id="btn-add">
+                    <span class="ico" data-icon="plus" aria-hidden="true"></span>
+                    <span data-i18n="add">Add</span>
+                </button>
+
+                <button type="button" class="btn btn-icon" id="btn-settings" aria-label="Settings" data-i18n-aria="settings" title="Settings" data-i18n-title="settings">
+                    <span class="ico" data-icon="settings-2" aria-hidden="true"></span>
+                </button>
+            </div>
+        </header>
+
+        <main class="board" id="main">
+            <section class="board-head">
+                <div class="title-block">
+                    <p class="eyebrow" id="eyebrow"></p>
+                    <div class="title-row">
+                        <h1 class="schedule-title" id="schedule-title" contenteditable="true" role="textbox"
+                            aria-label="Schedule title" data-i18n-aria="scheduleTitle" spellcheck="false"
+                            enterkeyhint="done">My Schedule</h1>
+                        <span class="title-pencil ico" data-icon="pencil" aria-hidden="true"></span>
+                    </div>
+                    <p class="title-hint" id="title-hint" data-i18n="titleHint">Click the title to rename your slate</p>
+                </div>
+                <div class="board-stats" id="board-stats"></div>
+            </section>
+
+            <div class="hint-bar" id="empty-hint" hidden>
+                <span class="hint-ico ico" data-icon="sparkles" aria-hidden="true"></span>
+                <p data-i18n="emptyHint">Your slate is empty — click any cell on the grid to block out your first event.</p>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-sample" data-i18n="loadSample">Try a sample week</button>
+            </div>
+
+            <section class="sched-panel" id="schedule-panel" tabindex="-1" aria-label="Schedule" data-i18n-aria="schedule">
+                <div id="grid-root" class="grid-root"></div>
+            </section>
+
+            <footer class="board-foot">
+                <p class="save-note">
+                    <span class="ico" data-icon="circle-check" aria-hidden="true"></span>
+                    <span data-i18n="autosaved">Saved automatically in this browser</span>
+                </p>
+                <p class="keys">
+                    <kbd>N</kbd> <span data-i18n="shortcutNew">new event</span>
+                    <span class="dot">·</span>
+                    <kbd>Esc</kbd> <span data-i18n="shortcutClose">close</span>
+                    <span class="dot">·</span>
+                    <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> <span data-i18n="shortcutViews">switch view</span>
+                </p>
+            </footer>
+        </main>
+    </div>
+
+    <div id="modal-layer" class="layer" hidden></div>
+    <div id="toast-layer" class="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+
+    <noscript>
+        <p class="noscript">SchedSlate needs JavaScript enabled to build and save your schedule.</p>
+    </noscript>
+
+    <script src="./assets/js/icons.js" defer></script>
+    <script src="./assets/js/utils.js" defer></script>
+    <script src="./assets/js/i18n.js" defer></script>
+    <script src="./assets/js/store.js" defer></script>
+    <script src="./assets/js/grid.js" defer></script>
+    <script src="./assets/js/modals.js" defer></script>
+    <script src="./assets/js/app.js" defer></script>
 </body>
 </html>
