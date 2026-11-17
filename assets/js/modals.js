@@ -186,35 +186,86 @@
 
     /* ----------------------------------------------------------- task modal */
 
+    var DEFAULT_START = 9 * 60;
+    var DEFAULT_DURATION = 60;
+
+    function sortedDays(times) {
+        return Object.keys(times || {})
+            .map(Number)
+            .sort(function (a, b) {
+                return a - b;
+            });
+    }
+
+    /** Slot used when a day is newly selected: inherit the first day, else 09:00–10:00. */
+    function starterSlot(times) {
+        var days = sortedDays(times);
+        if (!days.length) {
+            return { start: DEFAULT_START, duration: DEFAULT_DURATION };
+        }
+        var slot = times[days[0]];
+        return { start: slot.start, duration: slot.duration };
+    }
+
     function defaultDraft(options) {
         var day = options.day;
         if (day === undefined || day === null) {
             day = U.todayIndex();
         }
-        var start = options.start !== undefined ? options.start : 9 * 60;
+        var start = options.start !== undefined ? options.start : DEFAULT_START;
         start = U.clamp(U.snap(start, 30), 0, U.MIN_PER_DAY - 30);
-        var duration = options.duration || 60;
+        var duration = options.duration || DEFAULT_DURATION;
         duration = U.clamp(U.snap(duration, 30), 30, U.MIN_PER_DAY - start);
+
+        var times = {};
+        times[day] = { start: start, duration: duration };
 
         return {
             id: null,
             title: '',
             note: '',
-            days: [day],
-            start: start,
-            duration: duration,
-            color: S.PALETTE[0]
+            color: S.PALETTE[0],
+            times: times
         };
     }
 
-    function taskModalMarkup(draft, editing) {
-        var days = draft.days.slice().sort();
-        var start = draft.start;
-        var end = Math.min(start + draft.duration, U.MIN_PER_DAY);
+    function dayTimeRowMarkup(day, slot) {
+        var end = Math.min(slot.start + slot.duration, U.MIN_PER_DAY);
+        return '<div class="day-time-row" data-day="' + day + '">' +
+            '<span class="day-time-label">' + U.esc(I.dayName(day)) + '</span>' +
+            '<div class="time-field">' + iconSvg('clock') +
+            '<select class="select" data-field="start" data-day="' + day + '" aria-label="' +
+            U.esc(I.t('startLabel') + ' · ' + I.dayName(day)) + '">' +
+            timeOptions(startValues(), slot.start) + '</select>' +
+            '<span class="select-chevron">' + iconSvg('chevron-down') + '</span>' +
+            '</div>' +
+            '<span class="time-sep" aria-hidden="true">–</span>' +
+            '<div class="time-field">' + iconSvg('clock') +
+            '<select class="select" data-field="end" data-day="' + day + '" aria-label="' +
+            U.esc(I.t('endLabel') + ' · ' + I.dayName(day)) + '">' +
+            timeOptions(endValues(slot.start), end) + '</select>' +
+            '<span class="select-chevron">' + iconSvg('chevron-down') + '</span>' +
+            '</div>' +
+            '<span class="day-time-duration" data-duration-for="' + day + '">' +
+            U.esc(I.duration(slot.duration)) + '</span>' +
+            '<p class="error-text day-time-error" data-day-error="' + day + '" hidden></p>' +
+            '</div>';
+    }
 
-        var dayPills = U.dayOrder(1).concat(0).map(function (day) {
+    function dayTimesMarkup(draft) {
+        var days = sortedDays(draft.times);
+        if (!days.length) {
+            return '<p class="field-hint">' + U.esc(I.t('noDaysSelected')) + '</p>';
+        }
+        return days.map(function (day) {
+            return dayTimeRowMarkup(day, draft.times[day]);
+        }).join('');
+    }
+
+    function taskModalMarkup(draft, editing) {
+        var dayPills = U.dayOrder(1).map(function (day) {
             return '<button type="button" class="day-pill" data-day="' + day + '" aria-pressed="' +
-                (draft.days.indexOf(day) !== -1 ? 'true' : 'false') + '" aria-label="' + U.esc(I.dayName(day)) + '">' +
+                (draft.times[day] ? 'true' : 'false') + '" aria-label="' + U.esc(I.dayName(day)) + '">' +
                 U.esc(I.dayMini(day)) + '</button>';
         }).join('');
 
@@ -249,26 +300,15 @@
             '</div>' +
 
             '<div class="field">' +
-            '<span class="field-label">' + U.esc(I.t('startLabel')) + ' / ' + U.esc(I.t('endLabel')) + '</span>' +
-            '<div class="time-row">' +
-            '<div class="time-field">' + iconSvg('clock') +
-            '<select class="select" data-field="start" aria-label="' + U.esc(I.t('startLabel')) + '">' +
-            timeOptions(startValues(), start) + '</select>' +
-            '<span class="select-chevron">' + iconSvg('chevron-down') + '</span>' +
-            '</div>' +
-            '<div class="time-field">' + iconSvg('clock') +
-            '<select class="select" data-field="end" aria-label="' + U.esc(I.t('endLabel')) + '">' +
-            timeOptions(endValues(start), end) + '</select>' +
-            '<span class="select-chevron">' + iconSvg('chevron-down') + '</span>' +
-            '</div>' +
-            '</div>' +
+            '<span class="field-label">' + U.esc(I.t('timesLabel')) + '</span>' +
+            '<div class="day-times" data-day-times>' + dayTimesMarkup(draft) + '</div>' +
             '<div class="quick-durations" role="group" aria-label="' + U.esc(I.t('quickPick')) + '">' +
             [30, 60, 90, 120].map(function (minutes) {
                 return '<button type="button" class="chip-btn" data-duration="' + minutes + '">' +
                     U.esc(I.duration(minutes)) + '</button>';
             }).join('') +
             '</div>' +
-            '<p class="field-hint" data-duration-hint></p>' +
+            '<p class="field-hint">' + U.esc(I.t('quickPickHint')) + '</p>' +
             '</div>' +
 
             '<div class="field">' +
@@ -297,11 +337,22 @@
     }
 
     function subtitle(draft) {
-        var days = draft.days.slice().sort().map(function (day) {
+        var days = sortedDays(draft.times);
+        if (!days.length) {
+            return I.t('noDaysSelected');
+        }
+        var names = days.map(function (day) {
             return I.dayShort(day);
         }).join(', ');
-        var end = Math.min(draft.start + draft.duration, U.MIN_PER_DAY);
-        return days + ' · ' + U.formatRange(draft.start, end, clock());
+        var first = draft.times[days[0]];
+        var uniform = days.every(function (day) {
+            var slot = draft.times[day];
+            return slot.start === first.start && slot.duration === first.duration;
+        });
+        var summary = uniform
+            ? U.formatRange(first.start, Math.min(first.start + first.duration, U.MIN_PER_DAY), clock())
+            : I.t('varyingTimes');
+        return names + ' · ' + summary;
     }
 
     function openTaskModal(options) {
@@ -311,10 +362,8 @@
             id: existing.id,
             title: existing.title,
             note: existing.note,
-            days: existing.days.slice(),
-            start: existing.start,
-            duration: existing.duration,
-            color: existing.color
+            color: existing.color,
+            times: JSON.parse(JSON.stringify(existing.times))
         } : defaultDraft(opts);
 
         openLayer(taskModalMarkup(draft, !!existing), { drawer: false });
@@ -322,11 +371,9 @@
         var form = layer.querySelector('.modal-form');
         var titleInput = form.querySelector('[data-field="title"]');
         var noteInput = form.querySelector('[data-field="note"]');
-        var startSelect = form.querySelector('[data-field="start"]');
-        var endSelect = form.querySelector('[data-field="end"]');
+        var dayTimesBox = form.querySelector('[data-day-times]');
         var sub = layer.querySelector('[data-sub]');
         var hex = layer.querySelector('[data-hex]');
-        var durationHint = form.querySelector('[data-duration-hint]');
         var titleError = form.querySelector('[data-error="title"]');
         var daysError = form.querySelector('[data-error="days"]');
 
@@ -339,77 +386,30 @@
             }
         });
 
-        function currentEnd() {
-            return Math.min(Number(endSelect.value) || draft.start + draft.duration, U.MIN_PER_DAY);
-        }
-
-        function syncEndOptions(preferredDuration) {
-            var start = Number(startSelect.value);
-            var duration = preferredDuration || (currentEnd() - draft.start) || 60;
-            var end = U.clamp(start + duration, start + 30, U.MIN_PER_DAY);
-            endSelect.innerHTML = timeOptions(endValues(start), end);
-            draft.start = start;
-            draft.duration = end - start;
-        }
-
-        function refreshMeta() {
-            endSelect.value = String(Math.min(Number(endSelect.value), U.MIN_PER_DAY));
-            draft.start = Number(startSelect.value);
-            draft.duration = currentEnd() - draft.start;
+        function refreshSubtitle() {
             sub.textContent = subtitle(draft);
-            durationHint.textContent = I.t('durationSummary', { duration: I.duration(draft.duration) });
         }
 
-        function refreshPills(selector, attribute, value) {
-            U.each(selector, form).forEach(function (node) {
-                node.setAttribute('aria-pressed', node.getAttribute(attribute) === String(value) ? 'true' : 'false');
+        function refreshRows() {
+            dayTimesBox.innerHTML = dayTimesMarkup(draft);
+            refreshSubtitle();
+        }
+
+        function setQuickDuration(minutes) {
+            sortedDays(draft.times).forEach(function (day) {
+                var slot = draft.times[day];
+                var duration = U.clamp(minutes, 30, U.MIN_PER_DAY - slot.start);
+                draft.times[day] = { start: slot.start, duration: duration };
+            });
+            refreshRows();
+        }
+
+        function refreshPills() {
+            U.each('.day-pill', form).forEach(function (node) {
+                var day = Number(node.getAttribute('data-day'));
+                node.setAttribute('aria-pressed', draft.times[day] ? 'true' : 'false');
             });
         }
-
-        form.addEventListener('click', function (event) {
-            var close = event.target.closest('[data-close]');
-            if (close) {
-                closeLayer();
-                return;
-            }
-
-            var dayButton = event.target.closest('.day-pill');
-            if (dayButton) {
-                var day = Number(dayButton.getAttribute('data-day'));
-                var index = draft.days.indexOf(day);
-                if (index === -1) {
-                    draft.days.push(day);
-                } else {
-                    draft.days.splice(index, 1);
-                }
-                dayButton.setAttribute('aria-pressed', index === -1 ? 'true' : 'false');
-                daysError.hidden = true;
-                sub.textContent = subtitle(draft);
-                return;
-            }
-
-            var swatch = event.target.closest('.swatch');
-            if (swatch) {
-                draft.color = swatch.getAttribute('data-color');
-                refreshPills('.swatch', 'data-color', draft.color);
-                hex.textContent = draft.color.toUpperCase();
-                return;
-            }
-
-            var quick = event.target.closest('[data-duration]');
-            if (quick) {
-                var minutes = Number(quick.getAttribute('data-duration'));
-                var end = U.clamp(Number(startSelect.value) + minutes, Number(startSelect.value) + 30, U.MIN_PER_DAY);
-                endSelect.innerHTML = timeOptions(endValues(Number(startSelect.value)), end);
-                refreshMeta();
-                return;
-            }
-
-            var deleteButton = event.target.closest('[data-delete]');
-            if (deleteButton) {
-                deleteCurrent();
-            }
-        });
 
         titleInput.addEventListener('input', function () {
             if (titleInput.value.trim()) {
@@ -418,13 +418,84 @@
             }
         });
 
-        startSelect.addEventListener('change', function () {
-            syncEndOptions(draft.duration);
-            refreshMeta();
+        form.addEventListener('click', function (event) {
+            if (event.target.closest('[data-close]')) {
+                closeLayer();
+                return;
+            }
+
+            var dayButton = event.target.closest('.day-pill');
+            if (dayButton) {
+                var day = Number(dayButton.getAttribute('data-day'));
+                if (draft.times[day]) {
+                    delete draft.times[day];
+                } else {
+                    var base = starterSlot(draft.times);
+                    draft.times[day] = { start: base.start, duration: base.duration };
+                }
+                refreshPills();
+                daysError.hidden = true;
+                refreshRows();
+                return;
+            }
+
+            var swatch = event.target.closest('.swatch');
+            if (swatch) {
+                draft.color = swatch.getAttribute('data-color');
+                U.each('.swatch', form).forEach(function (node) {
+                    node.setAttribute('aria-pressed', node === swatch ? 'true' : 'false');
+                });
+                hex.textContent = draft.color.toUpperCase();
+                return;
+            }
+
+            var quick = event.target.closest('[data-duration]');
+            if (quick) {
+                setQuickDuration(Number(quick.getAttribute('data-duration')));
+                return;
+            }
+
+            if (event.target.closest('[data-delete]')) {
+                deleteCurrent();
+            }
         });
 
-        endSelect.addEventListener('change', refreshMeta);
-        refreshMeta();
+        dayTimesBox.addEventListener('change', function (event) {
+            var select = event.target.closest('select[data-field]');
+            if (!select) {
+                return;
+            }
+            var day = Number(select.getAttribute('data-day'));
+            var slot = draft.times[day];
+            if (!slot) {
+                return;
+            }
+            var row = select.closest('.day-time-row');
+            var errorNode = row.querySelector('[data-day-error]');
+
+            if (select.getAttribute('data-field') === 'start') {
+                var start = Number(select.value);
+                var end = U.clamp(start + slot.duration, start + 30, U.MIN_PER_DAY);
+                draft.times[day] = { start: start, duration: end - start };
+                var endSelect = row.querySelector('select[data-field="end"]');
+                endSelect.innerHTML = timeOptions(endValues(start), end);
+            } else {
+                var endValue = Number(select.value);
+                if (endValue <= slot.start) {
+                    errorNode.textContent = I.t('errEnd');
+                    errorNode.hidden = false;
+                    return;
+                }
+                draft.times[day] = { start: slot.start, duration: endValue - slot.start };
+            }
+
+            errorNode.hidden = true;
+            var durationNode = row.querySelector('[data-duration-for]');
+            if (durationNode) {
+                durationNode.textContent = I.duration(draft.times[day].duration);
+            }
+            refreshSubtitle();
+        });
 
         form.addEventListener('submit', function (event) {
             event.preventDefault();
@@ -441,11 +512,29 @@
                 titleInput.classList.remove('is-invalid');
             }
 
-            if (!draft.days.length) {
+            var days = sortedDays(draft.times);
+            if (!days.length) {
                 daysError.textContent = I.t('errDays');
                 daysError.hidden = false;
                 valid = false;
             }
+
+            /* every day needs its own valid range: end strictly after start */
+            days.forEach(function (day) {
+                var slot = draft.times[day];
+                var row = dayTimesBox.querySelector('.day-time-row[data-day="' + day + '"]');
+                var errorNode = row ? row.querySelector('[data-day-error]') : null;
+                var invalid = slot.duration < 30 || slot.start + slot.duration > U.MIN_PER_DAY;
+                if (invalid) {
+                    valid = false;
+                    if (errorNode) {
+                        errorNode.textContent = I.t('errEnd');
+                        errorNode.hidden = false;
+                    }
+                } else if (errorNode) {
+                    errorNode.hidden = true;
+                }
+            });
 
             if (!valid) {
                 if (!title) {
@@ -454,13 +543,16 @@
                 return;
             }
 
+            var times = {};
+            days.forEach(function (day) {
+                times[day] = { start: draft.times[day].start, duration: draft.times[day].duration };
+            });
+
             var payload = {
                 title: title,
                 note: noteInput.value.trim(),
-                days: draft.days.slice(),
-                start: Number(startSelect.value),
-                duration: currentEnd() - Number(startSelect.value),
-                color: draft.color
+                color: draft.color,
+                times: times
             };
 
             if (existing) {

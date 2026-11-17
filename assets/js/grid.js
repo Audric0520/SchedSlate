@@ -56,7 +56,8 @@
         var current = null;
 
         tasks.forEach(function (task) {
-            var item = { task: task, start: task.start, end: task.start + task.duration };
+            var slot = S.occurrence(task, day);
+            var item = { task: task, start: slot.start, end: slot.end };
             if (!current || item.start >= current.end) {
                 current = { items: [], end: item.end };
                 clusters.push(current);
@@ -95,13 +96,13 @@
     function taskMarkup(item, day) {
         var task = item.task;
         var ppm = pxPerMin();
-        var top = task.start * ppm;
-        var height = Math.max(task.duration * ppm - 3, 15);
+        var top = item.start * ppm;
+        var height = Math.max((item.end - item.start) * ppm - 3, 15);
         var cols = item.cols || 1;
         var col = item.col || 0;
         var tight = height < 38;
         var color = task.color;
-        var range = U.formatRange(task.start, task.start + task.duration, settings().clock);
+        var range = U.formatRange(item.start, item.end, settings().clock);
         var style = [
             'top:' + top.toFixed(2) + 'px',
             'height:' + height.toFixed(2) + 'px',
@@ -161,7 +162,7 @@
 
     function plannedForDay(day) {
         return S.tasksForDay(day).reduce(function (total, task) {
-            return total + task.duration;
+            return total + task.times[day].duration;
         }, 0);
     }
 
@@ -208,7 +209,9 @@
     function initialScrollTop() {
         var earliest = U.MIN_PER_DAY;
         S.state.tasks.forEach(function (task) {
-            earliest = Math.min(earliest, task.start);
+            S.daysOf(task).forEach(function (day) {
+                earliest = Math.min(earliest, task.times[day].start);
+            });
         });
         var target = earliest < U.MIN_PER_DAY ? Math.max(0, earliest - 60) : 7 * 60;
         return target * pxPerMin();
