@@ -13,13 +13,6 @@
     var activeForm = null;
     var activeOnClose = null;
 
-    var TASK_ICONS = [
-        'book-open', 'graduation-cap', 'briefcase', 'laptop', 'code-xml', 'users', 'phone', 'dumbbell',
-        'activity', 'coffee', 'utensils', 'moon', 'bed', 'sun', 'heart', 'brain', 'palette', 'music',
-        'gamepad-2', 'plane', 'shopping-cart', 'house', 'car', 'wallet', 'stethoscope', 'dog', 'leaf',
-        'target', 'sparkles', 'notebook-pen'
-    ];
-
     function clock() {
         return S.state.settings.clock;
     }
@@ -194,10 +187,9 @@
     /* ----------------------------------------------------------- task modal */
 
     function defaultDraft(options) {
-        var settings = S.state.settings;
         var day = options.day;
         if (day === undefined || day === null) {
-            day = settings.view === 'day' ? S.state.ui.activeDay : U.todayIndex();
+            day = U.todayIndex();
         }
         var start = options.start !== undefined ? options.start : 9 * 60;
         start = U.clamp(U.snap(start, 30), 0, U.MIN_PER_DAY - 30);
@@ -211,8 +203,7 @@
             days: [day],
             start: start,
             duration: duration,
-            color: S.PALETTE[0],
-            icon: 'circle-dot'
+            color: S.PALETTE[0]
         };
     }
 
@@ -231,12 +222,6 @@
             return '<button type="button" class="swatch" data-color="' + color + '" style="--sw:' + color +
                 ';--sw-ink:' + U.inkOn(color) + '" aria-pressed="' + (draft.color === color ? 'true' : 'false') +
                 '" aria-label="' + color + '">' + iconSvg('check') + '</button>';
-        }).join('');
-
-        var iconChoices = TASK_ICONS.map(function (name) {
-            return '<button type="button" class="icon-choice" data-icon="' + name + '" aria-pressed="' +
-                (draft.icon === name ? 'true' : 'false') + '" aria-label="' + name + '" title="' + name + '">' +
-                iconSvg(name) + '</button>';
         }).join('');
 
         return '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">' +
@@ -269,10 +254,12 @@
             '<div class="time-field">' + iconSvg('clock') +
             '<select class="select" data-field="start" aria-label="' + U.esc(I.t('startLabel')) + '">' +
             timeOptions(startValues(), start) + '</select>' +
+            '<span class="select-chevron">' + iconSvg('chevron-down') + '</span>' +
             '</div>' +
             '<div class="time-field">' + iconSvg('clock') +
             '<select class="select" data-field="end" aria-label="' + U.esc(I.t('endLabel')) + '">' +
             timeOptions(endValues(start), end) + '</select>' +
+            '<span class="select-chevron">' + iconSvg('chevron-down') + '</span>' +
             '</div>' +
             '</div>' +
             '<div class="quick-durations" role="group" aria-label="' + U.esc(I.t('quickPick')) + '">' +
@@ -288,11 +275,6 @@
             '<span class="field-label">' + U.esc(I.t('colorLabel')) +
             '<span class="hex-readout" data-hex>' + draft.color.toUpperCase() + '</span></span>' +
             '<div class="swatches" role="group" aria-label="' + U.esc(I.t('colorLabel')) + '">' + swatches + '</div>' +
-            '</div>' +
-
-            '<div class="field">' +
-            '<span class="field-label">' + U.esc(I.t('iconLabel')) + '</span>' +
-            '<div class="icon-grid" role="group" aria-label="' + U.esc(I.t('iconLabel')) + '">' + iconChoices + '</div>' +
             '</div>' +
 
             '<div class="field">' +
@@ -332,8 +314,7 @@
             days: existing.days.slice(),
             start: existing.start,
             duration: existing.duration,
-            color: existing.color,
-            icon: existing.icon
+            color: existing.color
         } : defaultDraft(opts);
 
         openLayer(taskModalMarkup(draft, !!existing), { drawer: false });
@@ -415,13 +396,6 @@
                 return;
             }
 
-            var iconChoice = event.target.closest('.icon-choice');
-            if (iconChoice) {
-                draft.icon = iconChoice.getAttribute('data-icon');
-                refreshPills('.icon-choice', 'data-icon', draft.icon);
-                return;
-            }
-
             var quick = event.target.closest('[data-duration]');
             if (quick) {
                 var minutes = Number(quick.getAttribute('data-duration'));
@@ -486,8 +460,7 @@
                 days: draft.days.slice(),
                 start: Number(startSelect.value),
                 duration: currentEnd() - Number(startSelect.value),
-                color: draft.color,
-                icon: draft.icon
+                color: draft.color
             };
 
             if (existing) {
@@ -541,15 +514,6 @@
             '</div>' +
 
             '<div class="setting">' +
-            '<span class="setting-label">' + U.esc(I.t('scheduleViewTitle')) + '</span>' +
-            pillGroup('view', [
-                { value: 'day', label: I.t('viewDay') },
-                { value: 'week', label: I.t('viewWeek') },
-                { value: 'month', label: I.t('viewMonth') }
-            ], settings.view) +
-            '</div>' +
-
-            '<div class="setting">' +
             '<span class="setting-label">' + U.esc(I.t('showWeekend')) + '</span>' +
             pillGroup('showWeekend', [
                 { value: 'true', label: I.t('yes') },
@@ -587,7 +551,7 @@
             '<span class="setting-label">' + U.esc(I.t('minHeightTitle')) + '</span>' +
             '<div class="slider-row">' +
             '<input type="range" min="4" max="24" step="1" value="' + settings.minHours + '" data-slider="minHours" ' +
-            'aria-label="' + U.esc(I.t('minHeightTitle')) + '" style="--fill:' + ((settings.minHours - 4) / 20 * 100) + '%" />' +
+            'aria-label="' + U.esc(I.t('minHeightTitle')) + '" />' +
             '<span class="slider-value">' + U.esc(I.t('hoursShort', { n: settings.minHours })) + '</span>' +
             '</div>' +
             '</div>' +
@@ -665,8 +629,6 @@
 
             if (setting === 'clock') {
                 patch.clock = raw;
-            } else if (setting === 'view') {
-                patch.view = raw;
             } else if (setting === 'showWeekend') {
                 patch.showWeekend = raw === 'true';
             } else if (setting === 'weekStart') {
@@ -693,8 +655,6 @@
                 return;
             }
             var value = Number(slider.value);
-            var fill = (value - 4) / 20 * 100;
-            slider.style.setProperty('--fill', fill + '%');
             var label = slider.parentNode.querySelector('.slider-value');
             if (label) {
                 label.textContent = I.t('hoursShort', { n: value });

@@ -53,14 +53,6 @@
             '</div>';
     }
 
-    function renderViewSwitch() {
-        var view = S.state.settings.view;
-        U.each('.seg', dom.viewSwitch).forEach(function (button) {
-            button.setAttribute('aria-pressed', button.getAttribute('data-view') === view ? 'true' : 'false');
-        });
-        document.documentElement.setAttribute('data-view', view);
-    }
-
     function renderTitle() {
         var title = S.state.title;
         if (dom.title && dom.title.textContent !== title) {
@@ -80,7 +72,6 @@
         renderTitle();
         renderEyebrow();
         renderStats();
-        renderViewSwitch();
         renderHint();
         Grid.render();
     }
@@ -150,14 +141,6 @@
     }
 
     function setupToolbar() {
-        dom.viewSwitch.addEventListener('click', function (event) {
-            var button = event.target.closest('.seg');
-            if (!button) {
-                return;
-            }
-            S.setSettings({ view: button.getAttribute('data-view') });
-        });
-
         document.getElementById('btn-add').addEventListener('click', function () {
             openNewTask({});
         });
@@ -196,17 +179,6 @@
                 return;
             }
 
-            if (isTypingTarget(event.target)) {
-                return;
-            }
-
-            if (key === '1') {
-                S.setSettings({ view: 'day' });
-            } else if (key === '2') {
-                S.setSettings({ view: 'week' });
-            } else if (key === '3') {
-                S.setSettings({ view: 'month' });
-            }
         });
     }
 
@@ -230,7 +202,6 @@
     }
 
     function init() {
-        dom.viewSwitch = document.getElementById('view-switch');
         dom.stats = document.getElementById('board-stats');
         dom.eyebrow = document.getElementById('eyebrow');
         dom.title = document.getElementById('schedule-title');

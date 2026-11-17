@@ -20,7 +20,6 @@
 
     var DEFAULT_SETTINGS = {
         clock: '24h',
-        view: 'week',
         showWeekend: true,
         weekStart: 1,
         increment: 30,
@@ -29,21 +28,12 @@
         language: 'en'
     };
 
-    function monthKey(date) {
-        var d = date || new Date();
-        return d.getFullYear() + '-' + Util.pad2(d.getMonth() + 1);
-    }
-
     function defaultState() {
         return {
             version: VERSION,
             title: 'My Schedule',
             tasks: [],
-            settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
-            ui: {
-                activeDay: Util.todayIndex(),
-                monthCursor: monthKey()
-            }
+            settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS))
         };
     }
 
@@ -97,7 +87,6 @@
             start: start,
             duration: duration,
             color: Util.isHex(raw.color) ? String(raw.color).toLowerCase() : PALETTE[0],
-            icon: typeof raw.icon === 'string' && raw.icon ? raw.icon : 'circle-dot',
             createdAt: Number(raw.createdAt) || Date.now()
         };
     }
@@ -109,9 +98,6 @@
         }
         if (raw.clock === '12h' || raw.clock === '24h') {
             settings.clock = raw.clock;
-        }
-        if (raw.view === 'day' || raw.view === 'week' || raw.view === 'month') {
-            settings.view = raw.view;
         }
         if (typeof raw.showWeekend === 'boolean') {
             settings.showWeekend = raw.showWeekend;
@@ -132,21 +118,6 @@
             settings.language = raw.language;
         }
         return settings;
-    }
-
-    function sanitizeUi(raw) {
-        var ui = defaultState().ui;
-        if (!isPlainObject(raw)) {
-            return ui;
-        }
-        var day = Math.round(Number(raw.activeDay));
-        if (day >= 0 && day <= 6) {
-            ui.activeDay = day;
-        }
-        if (typeof raw.monthCursor === 'string' && /^\d{4}-\d{2}$/.test(raw.monthCursor)) {
-            ui.monthCursor = raw.monthCursor;
-        }
-        return ui;
     }
 
     /* ------------------------------------------------------------ persistence */
@@ -179,7 +150,6 @@
             next.tasks = raw.tasks.map(sanitizeTask).filter(Boolean).slice(0, 800);
         }
         next.settings = sanitizeSettings(raw.settings);
-        next.ui = sanitizeUi(raw.ui);
         return next;
     }
 
@@ -189,8 +159,7 @@
                 version: VERSION,
                 title: state.title,
                 tasks: state.tasks,
-                settings: state.settings,
-                ui: state.ui
+                settings: state.settings
             }));
         } catch (error) {
             /* storage might be blocked or full — the app keeps working in memory */
@@ -329,12 +298,6 @@
         return state.settings;
     }
 
-    function setUi(patch) {
-        state.ui = sanitizeUi(Object.assign({}, state.ui, patch));
-        emit('ui');
-        return state.ui;
-    }
-
     function countBlocks() {
         return state.tasks.reduce(function (total, task) {
             return total + task.days.length;
@@ -359,20 +322,18 @@
 
     function seedSample() {
         var t = global.SSI18n.t;
-        var today = Util.todayIndex();
         var samples = [
-            { title: t('sampleDeepWork'), days: [1], start: 540, duration: 90, color: PALETTE[0], icon: 'brain', note: '' },
-            { title: t('sampleStandup'), days: [1, 3, 5], start: 600, duration: 30, color: PALETTE[1], icon: 'users', note: '' },
-            { title: t('sampleWorkout'), days: [2, 4], start: 420, duration: 60, color: PALETTE[6], icon: 'dumbbell', note: '' },
-            { title: t('sampleProject'), days: [2], start: 840, duration: 120, color: PALETTE[7], icon: 'laptop', note: '' },
-            { title: t('sampleLunch'), days: [1, 2, 3, 4, 5], start: 750, duration: 60, color: PALETTE[4], icon: 'utensils', note: '' },
-            { title: t('sampleStudy'), days: [3], start: 960, duration: 90, color: PALETTE[2], icon: 'book-open', note: '' },
-            { title: t('sampleDinner'), days: [5], start: 1080, duration: 60, color: PALETTE[5], icon: 'utensils', note: '' },
-            { title: t('sampleReading'), days: [6], start: 600, duration: 120, color: PALETTE[3], icon: 'book-open', note: '' },
-            { title: t('samplePlan'), days: [0], start: 1200, duration: 30, color: PALETTE[0], icon: 'target', note: '' }
+            { title: t('sampleDeepWork'), days: [1], start: 540, duration: 90, color: PALETTE[0], note: '' },
+            { title: t('sampleStandup'), days: [1, 3, 5], start: 600, duration: 30, color: PALETTE[1], note: '' },
+            { title: t('sampleWorkout'), days: [2, 4], start: 420, duration: 60, color: PALETTE[6], note: '' },
+            { title: t('sampleProject'), days: [2], start: 840, duration: 120, color: PALETTE[7], note: '' },
+            { title: t('sampleLunch'), days: [1, 2, 3, 4, 5], start: 750, duration: 60, color: PALETTE[4], note: '' },
+            { title: t('sampleStudy'), days: [3], start: 960, duration: 90, color: PALETTE[2], note: '' },
+            { title: t('sampleDinner'), days: [5], start: 1080, duration: 60, color: PALETTE[5], note: '' },
+            { title: t('sampleReading'), days: [6], start: 600, duration: 120, color: PALETTE[3], note: '' },
+            { title: t('samplePlan'), days: [0], start: 1200, duration: 30, color: PALETTE[0], note: '' }
         ];
         state.tasks = samples.map(sanitizeTask).filter(Boolean);
-        state.ui.activeDay = today;
         emit('seed');
     }
 
@@ -430,11 +391,9 @@
         restoreTask: restoreTask,
         setTitle: setTitle,
         setSettings: setSettings,
-        setUi: setUi,
         countBlocks: countBlocks,
         totalPlannedMinutes: totalPlannedMinutes,
         reset: reset,
-        seedSample: seedSample,
-        monthKey: monthKey
+        seedSample: seedSample
     };
 })(window);
