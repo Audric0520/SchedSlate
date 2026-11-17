@@ -5,7 +5,8 @@ SchedSlate bundles two third-party assets so that the app works fully offline.
 ## Lucide Icons
 
 - Source: https://lucide.dev (package `lucide-static` v1.73.0)
-- Used in: `assets/js/icons.js` (SVG geometry extracted verbatim into an inline icon map)
+- Used in: `assets/js/icons.js` (geometry for the 12 interface icons — close, check, clock,
+  chevrons, trash, reset, add, settings, pencil, sparkles, status dot — inlined as an SVG map)
 - License: ISC — full text in [`licenses/Lucide-ISC.txt`](licenses/Lucide-ISC.txt)
 
 Copyright (c) 2026 Lucide Icons and Contributors.

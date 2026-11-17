@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0A0E17" />
-    <meta name="description" content="SchedSlate — a dark-mode visual schedule maker. Block out your week, day or month in 30-minute slots. No account needed." />
+    <meta name="description" content="SchedSlate — a dark-mode visual schedule maker. Block out your week in 30-minute slots. No account needed." />
     <title>SchedSlate · Visual Schedule Maker</title>
     <link rel="icon" type="image/png" href="./SchedSlate%20Favicon.png" />
     <link rel="apple-touch-icon" href="./SchedSlate%20Favicon.png" />
@@ -14,7 +14,6 @@
 </head>
 <body>
     <a class="skip-link" href="#schedule-panel" data-i18n="skipToSchedule">Skip to schedule</a>
-    <div class="ambient" aria-hidden="true"></div>
 
     <div class="app-shell">
         <header class="topbar">
@@ -27,21 +26,6 @@
             </a>
 
             <div class="topbar-actions">
-                <div class="segmented" id="view-switch" role="group" aria-label="Schedule view" data-i18n-aria="scheduleView">
-                    <button type="button" class="seg" data-view="day" aria-pressed="false">
-                        <span class="seg-full" data-i18n="viewDay">Daily</span>
-                        <span class="seg-mini" data-i18n="viewDayShort">Day</span>
-                    </button>
-                    <button type="button" class="seg" data-view="week" aria-pressed="true">
-                        <span class="seg-full" data-i18n="viewWeek">Weekly</span>
-                        <span class="seg-mini" data-i18n="viewWeekShort">Week</span>
-                    </button>
-                    <button type="button" class="seg" data-view="month" aria-pressed="false">
-                        <span class="seg-full" data-i18n="viewMonth">Monthly</span>
-                        <span class="seg-mini" data-i18n="viewMonthShort">Month</span>
-                    </button>
-                </div>
-
                 <button type="button" class="btn btn-primary" id="btn-add">
                     <span class="ico" data-icon="plus" aria-hidden="true"></span>
                     <span data-i18n="add">Add</span>
@@ -87,8 +71,6 @@
                     <kbd>N</kbd> <span data-i18n="shortcutNew">new event</span>
                     <span class="dot">·</span>
                     <kbd>Esc</kbd> <span data-i18n="shortcutClose">close</span>
-                    <span class="dot">·</span>
-                    <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> <span data-i18n="shortcutViews">switch view</span>
                 </p>
             </footer>
         </main>
