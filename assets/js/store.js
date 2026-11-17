@@ -47,6 +47,54 @@
         return value && typeof value === 'object' && !Array.isArray(value);
     }
 
+    function normalizeStart(value) {
+        return Util.clamp(Util.snap(Util.normaliseMinutes(value), 30), 0, Util.MIN_PER_DAY - 30);
+    }
+
+    function normalizeDuration(value, start) {
+        var duration = Math.round(Number(value) || 60);
+        duration = Math.round(Util.clamp(duration, 30, Util.MIN_PER_DAY) / 30) * 30;
+        if (start + duration > Util.MIN_PER_DAY) {
+            duration = Math.max(30, Util.MIN_PER_DAY - start);
+        }
+        return duration;
+    }
+
+    /**
+     * A task keeps one time slot per weekday: { "1": { start, duration }, ... }.
+     * Events stored before per-day times existed ({ days, start, duration }) are
+     * migrated by stamping the shared slot onto every selected day.
+     */
+    function sanitizeTimes(raw) {
+        var times = {};
+        var source = raw.times;
+
+        if (isPlainObject(source)) {
+            Object.keys(source).forEach(function (key) {
+                var day = Math.round(Number(key));
+                var entry = source[key];
+                if (!(day >= 0 && day <= 6) || !isPlainObject(entry)) {
+                    return;
+                }
+                var start = normalizeStart(entry.start);
+                times[day] = { start: start, duration: normalizeDuration(entry.duration, start) };
+            });
+        }
+
+        if (!Object.keys(times).length && Array.isArray(raw.days)) {
+            var start = normalizeStart(raw.start);
+            var duration = normalizeDuration(raw.duration, start);
+            raw.days.forEach(function (day) {
+                var index = Math.round(Number(day));
+                if (index >= 0 && index <= 6) {
+                    times[index] = { start: start, duration: duration };
+                }
+            });
+        }
+
+        return times;
+    }
+
     function sanitizeTask(raw) {
         if (!isPlainObject(raw)) {
             return null;
@@ -55,37 +103,16 @@
         if (!title) {
             return null;
         }
-        var days = Array.isArray(raw.days) ? raw.days : [];
-        days = days
-            .map(function (day) {
-                return Math.round(Number(day));
-            })
-            .filter(function (day) {
-                return day >= 0 && day <= 6;
-            });
-        days = days.filter(function (day, index) {
-            return days.indexOf(day) === index;
-        }).sort(function (a, b) {
-            return a - b;
-        });
-        if (!days.length) {
+        var times = sanitizeTimes(raw);
+        if (!Object.keys(times).length) {
             return null;
-        }
-
-        var start = Util.snap(Util.normaliseMinutes(raw.start), 30);
-        var duration = Math.round(Number(raw.duration) || 60);
-        duration = Math.round(Util.clamp(duration, 30, Util.MIN_PER_DAY) / 30) * 30;
-        if (start + duration > Util.MIN_PER_DAY) {
-            duration = Math.max(30, Util.MIN_PER_DAY - start);
         }
 
         return {
             id: typeof raw.id === 'string' && raw.id ? raw.id : Util.uid('ev'),
             title: title,
             note: String(raw.note == null ? '' : raw.note).trim().slice(0, 400),
-            days: days,
-            start: start,
-            duration: duration,
+            times: times,
             color: Util.isHex(raw.color) ? String(raw.color).toLowerCase() : PALETTE[0],
             createdAt: Number(raw.createdAt) || Date.now()
         };
@@ -220,13 +247,40 @@
         return null;
     }
 
+    /** Weekdays a task repeats on, ascending. */
+    function daysOf(task) {
+        if (!task || !task.times) {
+            return [];
+        }
+        return Object.keys(task.times)
+            .map(Number)
+            .sort(function (a, b) {
+                return a - b;
+            });
+    }
+
+    /** The concrete slot a recurring task occupies on one weekday, or null. */
+    function occurrence(task, day) {
+        var entry = task && task.times ? task.times[day] : null;
+        if (!entry) {
+            return null;
+        }
+        return {
+            day: day,
+            start: entry.start,
+            duration: entry.duration,
+            end: entry.start + entry.duration
+        };
+    }
+
     function tasksForDay(day) {
         return state.tasks
             .filter(function (task) {
-                return task.days.indexOf(day) !== -1;
+                return !!task.times[day];
             })
             .sort(function (a, b) {
-                return a.start - b.start || b.duration - a.duration;
+                return a.times[day].start - b.times[day].start ||
+                    b.times[day].duration - a.times[day].duration;
             });
     }
 
@@ -300,14 +354,16 @@
 
     function countBlocks() {
         return state.tasks.reduce(function (total, task) {
-            return total + task.days.length;
+            return total + daysOf(task).length;
         }, 0);
     }
 
     function totalPlannedMinutes() {
         var total = 0;
         state.tasks.forEach(function (task) {
-            total += task.duration * task.days.length;
+            daysOf(task).forEach(function (day) {
+                total += task.times[day].duration;
+            });
         });
         return total;
     }
@@ -323,15 +379,16 @@
     function seedSample() {
         var t = global.SSI18n.t;
         var samples = [
-            { title: t('sampleDeepWork'), days: [1], start: 540, duration: 90, color: PALETTE[0], note: '' },
-            { title: t('sampleStandup'), days: [1, 3, 5], start: 600, duration: 30, color: PALETTE[1], note: '' },
-            { title: t('sampleWorkout'), days: [2, 4], start: 420, duration: 60, color: PALETTE[6], note: '' },
-            { title: t('sampleProject'), days: [2], start: 840, duration: 120, color: PALETTE[7], note: '' },
-            { title: t('sampleLunch'), days: [1, 2, 3, 4, 5], start: 750, duration: 60, color: PALETTE[4], note: '' },
-            { title: t('sampleStudy'), days: [3], start: 960, duration: 90, color: PALETTE[2], note: '' },
-            { title: t('sampleDinner'), days: [5], start: 1080, duration: 60, color: PALETTE[5], note: '' },
-            { title: t('sampleReading'), days: [6], start: 600, duration: 120, color: PALETTE[3], note: '' },
-            { title: t('samplePlan'), days: [0], start: 1200, duration: 30, color: PALETTE[0], note: '' }
+            /* one recurring event with different hours per day */
+            { title: t('sampleDeepWork'), color: PALETTE[0], note: '', times: { 1: { start: 450, duration: 180 }, 6: { start: 450, duration: 120 } } },
+            { title: t('sampleStandup'), color: PALETTE[1], note: '', times: { 1: { start: 600, duration: 30 }, 3: { start: 600, duration: 30 }, 5: { start: 600, duration: 30 } } },
+            { title: t('sampleWorkout'), color: PALETTE[6], note: '', times: { 2: { start: 420, duration: 60 }, 4: { start: 420, duration: 60 } } },
+            { title: t('sampleProject'), color: PALETTE[7], note: '', times: { 2: { start: 840, duration: 120 } } },
+            { title: t('sampleLunch'), color: PALETTE[4], note: '', times: { 1: { start: 750, duration: 60 }, 2: { start: 750, duration: 60 }, 3: { start: 750, duration: 60 }, 4: { start: 750, duration: 60 }, 5: { start: 750, duration: 60 } } },
+            { title: t('sampleStudy'), color: PALETTE[2], note: '', times: { 3: { start: 960, duration: 90 } } },
+            { title: t('sampleDinner'), color: PALETTE[5], note: '', times: { 5: { start: 1080, duration: 60 } } },
+            { title: t('sampleReading'), color: PALETTE[3], note: '', times: { 6: { start: 600, duration: 120 } } },
+            { title: t('samplePlan'), color: PALETTE[0], note: '', times: { 0: { start: 1200, duration: 30 } } }
         ];
         state.tasks = samples.map(sanitizeTask).filter(Boolean);
         emit('seed');
@@ -384,6 +441,8 @@
         flush: flush,
         subscribe: subscribe,
         getTask: getTask,
+        daysOf: daysOf,
+        occurrence: occurrence,
         tasksForDay: tasksForDay,
         addTask: addTask,
         updateTask: updateTask,

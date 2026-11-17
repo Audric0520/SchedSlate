@@ -30,6 +30,7 @@ Deploying to GitHub Pages only requires publishing the repository root.
   block in one gesture; a live ghost shows the exact time range while dragging.
 - Blocks span as many consecutive slots as their duration requires and lay **side by side** when
   schedules overlap.
+- A recurring block can use **different hours on each weekday** while staying one event.
 - A red **now marker** runs through today's column, and today's day header is highlighted.
 - The schedule title is **inline-editable** — click it to rename your slate (*"Fall Semester"*,
   *"Work Week"*, *"Family Routine"*).
@@ -41,10 +42,25 @@ Open the modal from either entry point — a grid cell or the **Add** button in 
 | Field | Details |
 | --- | --- |
 | Title | Required, used for the card and the accessible label |
-| Repeat on | Multi-select weekday chips (Mon–Sun); one block can cover several days |
-| Start / End | 30-minute steps, rendered in your chosen 12 h or 24 h clock, plus quick-duration chips |
+| Repeat on | Multi-select weekday chips (Mon–Sun); one event can cover several days |
+| Times per day | A separate start and end time for every selected day, in 30-minute steps |
+| Quick durations | Apply 30 min / 1 h / 1½ h / 2 h to all selected days at once |
 | Colour | 9 curated dark-mode accents with the hex value shown |
 | Note | Optional short note, shown on taller cards |
+
+### Recurring events with per-day hours
+
+Selecting more than one day does **not** force a single shared slot. Each selected day gets its own
+start and end time, so one recurring event can cover *Monday 07:30–10:30* and *Saturday 07:30–09:30*
+while remaining a single entry in your schedule.
+
+- A newly selected day is **pre-filled** with the hours of the first selected day (09:00–10:00 when it
+  is the only one), so adding days is quick and each one can then be adjusted.
+- Changing one day's start keeps that day's duration and shifts its end; other days are untouched.
+- Days are validated individually: every occurrence needs an end time after its start (the end picker
+  only offers values from start + 30 minutes, and submission re-checks it).
+- Each occurrence is rendered at its own time and size, but all occurrences share one event id, so
+  editing or deleting any card updates the whole recurrence.
 
 Blocks are identified by colour alone — there is no icon picker.
 
@@ -60,10 +76,26 @@ The **Settings** drawer (gear icon) re-renders the schedule instantly:
 - **Language** — English or Deutsch, applied to every label and time.
 - **Reset schedule** — clears all blocks and restores defaults.
 
-### Persistence
+### Persistence and data model
+An event stores one slot per weekday:
+
+```js
+{
+  id: 'ev_…', title: 'Deep work', note: '', color: '#7c8cff',
+  times: {
+    1: { start: 450, duration: 180 },  // Monday   07:30–10:30
+    6: { start: 450, duration: 120 }   // Saturday 07:30–09:30
+  }
+}
+```
+
+`start` is minutes from midnight and `duration` is in 30-minute steps.
+
 State is written to `localStorage` under the key `schedslate.state.v1` (debounced, flushed on page
 hide), restored and sanitised on load, and kept in sync between open tabs. Malformed or outdated data
-is repaired rather than crashing the app.
+is repaired rather than crashing the app, and events saved by earlier versions
+(`{ days: [1, 6], start: 450, duration: 180 }`) are migrated by stamping the shared slot onto every
+selected day.
 
 ---
 
