@@ -403,6 +403,25 @@
             refreshSubtitle();
         }
 
+        /* Keep the row the user just added in view. The modal body is the only
+           scroll container, so a long list of day rows never pushes the action
+           bar off screen and the page behind the dialog never scrolls. */
+        function revealRow(day) {
+            var body = layer.querySelector('.modal-body');
+            var row = dayTimesBox.querySelector('.day-time-row[data-day="' + day + '"]');
+            if (!body || !row) {
+                return;
+            }
+            var pad = 12;
+            var bodyRect = body.getBoundingClientRect();
+            var rowRect = row.getBoundingClientRect();
+            if (rowRect.bottom > bodyRect.bottom - pad) {
+                body.scrollTop += rowRect.bottom - bodyRect.bottom + pad;
+            } else if (rowRect.top < bodyRect.top + pad) {
+                body.scrollTop -= bodyRect.top - rowRect.top + pad;
+            }
+        }
+
         function setQuickDuration(minutes) {
             sortedDays(draft.times).forEach(function (day) {
                 var slot = draft.times[day];
@@ -435,15 +454,20 @@
             var dayButton = event.target.closest('.day-pill');
             if (dayButton) {
                 var day = Number(dayButton.getAttribute('data-day'));
+                var added = false;
                 if (draft.times[day]) {
                     delete draft.times[day];
                 } else {
                     var base = starterSlot(draft.times);
                     draft.times[day] = { start: base.start, duration: base.duration };
+                    added = true;
                 }
                 refreshPills();
                 daysError.hidden = true;
                 refreshRows();
+                if (added) {
+                    revealRow(day);
+                }
                 return;
             }
 
