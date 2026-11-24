@@ -224,7 +224,7 @@
             id: null,
             title: '',
             note: '',
-            color: S.PALETTE[0],
+            theme: global.SSThemes.defaultTheme,
             times: times
         };
     }
@@ -269,10 +269,20 @@
                 U.esc(I.dayMini(day)) + '</button>';
         }).join('');
 
-        var swatches = S.PALETTE.map(function (color) {
-            return '<button type="button" class="swatch" data-color="' + color + '" style="--sw:' + color +
-                ';--sw-ink:' + U.inkOn(color) + '" aria-pressed="' + (draft.color === color ? 'true' : 'false') +
-                '" aria-label="' + color + '">' + iconSvg('check') + '</button>';
+        var themes = global.SSThemes.list.map(function (theme) {
+            return '<button type="button" class="theme-choice" data-theme="' + theme.id + '" aria-pressed="' +
+                (draft.theme === theme.id ? 'true' : 'false') + '" aria-label="' + U.esc(theme.name) + '">' +
+                '<span class="theme-preview" aria-hidden="true">' +
+                '<span class="accent-bar"><i></i><i></i><i></i></span>' +
+                '<span class="theme-preview-title"></span>' +
+                '<span class="theme-preview-meta"></span>' +
+                '</span>' +
+                '<span class="theme-choice-foot">' +
+                '<span class="theme-choice-name">' + U.esc(theme.name) + '</span>' +
+                '<span class="theme-dots" aria-hidden="true"><i></i><i></i><i></i></span>' +
+                '</span>' +
+                '<span class="theme-check" aria-hidden="true">' + iconSvg('check') + '</span>' +
+                '</button>';
         }).join('');
 
         return '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">' +
@@ -312,9 +322,8 @@
             '</div>' +
 
             '<div class="field">' +
-            '<span class="field-label">' + U.esc(I.t('colorLabel')) +
-            '<span class="hex-readout" data-hex>' + draft.color.toUpperCase() + '</span></span>' +
-            '<div class="swatches" role="group" aria-label="' + U.esc(I.t('colorLabel')) + '">' + swatches + '</div>' +
+            '<span class="field-label">' + U.esc(I.t('themeLabel')) + '</span>' +
+            '<div class="themes" role="group" aria-label="' + U.esc(I.t('themeLabel')) + '">' + themes + '</div>' +
             '</div>' +
 
             '<div class="field">' +
@@ -362,7 +371,7 @@
             id: existing.id,
             title: existing.title,
             note: existing.note,
-            color: existing.color,
+            theme: S.themeOf(existing).id,
             times: JSON.parse(JSON.stringify(existing.times))
         } : defaultDraft(opts);
 
@@ -373,7 +382,6 @@
         var noteInput = form.querySelector('[data-field="note"]');
         var dayTimesBox = form.querySelector('[data-day-times]');
         var sub = layer.querySelector('[data-sub]');
-        var hex = layer.querySelector('[data-hex]');
         var titleError = form.querySelector('[data-error="title"]');
         var daysError = form.querySelector('[data-error="days"]');
 
@@ -439,13 +447,12 @@
                 return;
             }
 
-            var swatch = event.target.closest('.swatch');
-            if (swatch) {
-                draft.color = swatch.getAttribute('data-color');
-                U.each('.swatch', form).forEach(function (node) {
-                    node.setAttribute('aria-pressed', node === swatch ? 'true' : 'false');
+            var themeChoice = event.target.closest('.theme-choice');
+            if (themeChoice) {
+                draft.theme = themeChoice.getAttribute('data-theme');
+                U.each('.theme-choice', form).forEach(function (node) {
+                    node.setAttribute('aria-pressed', node === themeChoice ? 'true' : 'false');
                 });
-                hex.textContent = draft.color.toUpperCase();
                 return;
             }
 
@@ -551,7 +558,7 @@
             var payload = {
                 title: title,
                 note: noteInput.value.trim(),
-                color: draft.color,
+                theme: draft.theme,
                 times: times
             };
 

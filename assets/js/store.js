@@ -6,18 +6,6 @@
     var STORAGE_KEY = 'schedslate.state.v1';
     var VERSION = 1;
 
-    var PALETTE = [
-        '#7c8cff', /* indigo  */
-        '#38bdf8', /* sky     */
-        '#2dd4bf', /* teal    */
-        '#a3e635', /* lime    */
-        '#fbbf24', /* amber   */
-        '#fb923c', /* orange  */
-        '#fb7185', /* rose    */
-        '#c084fc', /* violet  */
-        '#94a3b8'  /* slate   */
-    ];
-
     var DEFAULT_SETTINGS = {
         clock: '24h',
         showWeekend: true,
@@ -113,7 +101,7 @@
             title: title,
             note: String(raw.note == null ? '' : raw.note).trim().slice(0, 400),
             times: times,
-            color: Util.isHex(raw.color) ? String(raw.color).toLowerCase() : PALETTE[0],
+            theme: global.SSThemes.has(raw.theme) ? raw.theme : global.SSThemes.fromLegacyColor(raw.color),
             createdAt: Number(raw.createdAt) || Date.now()
         };
     }
@@ -245,6 +233,11 @@
             }
         }
         return null;
+    }
+
+    /** Resolved theme for a task (always valid, falls back to the default). */
+    function themeOf(task) {
+        return global.SSThemes.get(task && task.theme);
     }
 
     /** Weekdays a task repeats on, ascending. */
@@ -380,15 +373,15 @@
         var t = global.SSI18n.t;
         var samples = [
             /* one recurring event with different hours per day */
-            { title: t('sampleDeepWork'), color: PALETTE[0], note: '', times: { 1: { start: 450, duration: 180 }, 6: { start: 450, duration: 120 } } },
-            { title: t('sampleStandup'), color: PALETTE[1], note: '', times: { 1: { start: 600, duration: 30 }, 3: { start: 600, duration: 30 }, 5: { start: 600, duration: 30 } } },
-            { title: t('sampleWorkout'), color: PALETTE[6], note: '', times: { 2: { start: 420, duration: 60 }, 4: { start: 420, duration: 60 } } },
-            { title: t('sampleProject'), color: PALETTE[7], note: '', times: { 2: { start: 840, duration: 120 } } },
-            { title: t('sampleLunch'), color: PALETTE[4], note: '', times: { 1: { start: 750, duration: 60 }, 2: { start: 750, duration: 60 }, 3: { start: 750, duration: 60 }, 4: { start: 750, duration: 60 }, 5: { start: 750, duration: 60 } } },
-            { title: t('sampleStudy'), color: PALETTE[2], note: '', times: { 3: { start: 960, duration: 90 } } },
-            { title: t('sampleDinner'), color: PALETTE[5], note: '', times: { 5: { start: 1080, duration: 60 } } },
-            { title: t('sampleReading'), color: PALETTE[3], note: '', times: { 6: { start: 600, duration: 120 } } },
-            { title: t('samplePlan'), color: PALETTE[0], note: '', times: { 0: { start: 1200, duration: 30 } } }
+            { title: t('sampleDeepWork'), theme: 'mobile-legends', note: '', times: { 1: { start: 450, duration: 180 }, 6: { start: 450, duration: 120 } } },
+            { title: t('sampleStandup'), theme: 'gengar', note: '', times: { 1: { start: 600, duration: 30 }, 3: { start: 600, duration: 30 }, 5: { start: 600, duration: 30 } } },
+            { title: t('sampleWorkout'), theme: 'kamen-rider-ooo', note: '', times: { 2: { start: 420, duration: 60 }, 4: { start: 420, duration: 60 } } },
+            { title: t('sampleProject'), theme: 'wednesday', note: '', times: { 2: { start: 840, duration: 120 } } },
+            { title: t('sampleLunch'), theme: 'mobile-legends', note: '', times: { 1: { start: 750, duration: 60 }, 2: { start: 750, duration: 60 }, 3: { start: 750, duration: 60 }, 4: { start: 750, duration: 60 }, 5: { start: 750, duration: 60 } } },
+            { title: t('sampleStudy'), theme: 'gengar', note: '', times: { 3: { start: 960, duration: 90 } } },
+            { title: t('sampleDinner'), theme: 'kamen-rider-ooo', note: '', times: { 5: { start: 1080, duration: 60 } } },
+            { title: t('sampleReading'), theme: 'wednesday', note: '', times: { 6: { start: 600, duration: 120 } } },
+            { title: t('samplePlan'), theme: 'mobile-legends', note: '', times: { 0: { start: 1200, duration: 30 } } }
         ];
         state.tasks = samples.map(sanitizeTask).filter(Boolean);
         emit('seed');
@@ -432,7 +425,6 @@
 
     global.SSStore = {
         STORAGE_KEY: STORAGE_KEY,
-        PALETTE: PALETTE,
         DEFAULT_SETTINGS: DEFAULT_SETTINGS,
         get state() {
             return state;
@@ -441,6 +433,7 @@
         flush: flush,
         subscribe: subscribe,
         getTask: getTask,
+        themeOf: themeOf,
         daysOf: daysOf,
         occurrence: occurrence,
         tasksForDay: tasksForDay,
