@@ -45,7 +45,7 @@ Open the modal from either entry point — a grid cell or the **Add** button in 
 | Repeat on | Multi-select weekday chips (Mon–Sun); one event can cover several days |
 | Times per day | A separate start and end time for every selected day, in 30-minute steps |
 | Quick durations | Apply 30 min / 1 h / 1½ h / 2 h to all selected days at once |
-| Colour | 9 curated dark-mode accents with the hex value shown |
+| Theme inspiration | Four curated dark-mode card themes, previewed before you save |
 | Note | Optional short note, shown on taller cards |
 
 ### Recurring events with per-day hours
@@ -62,7 +62,23 @@ while remaining a single entry in your schedule.
 - Each occurrence is rendered at its own time and size, but all occurrences share one event id, so
   editing or deleting any card updates the whole recurrence.
 
-Blocks are identified by colour alone — there is no icon picker.
+Blocks are styled by theme alone — there is no colour picker and no icon picker.
+
+### Theme inspirations
+
+Instead of picking a raw colour, each event wears one of four curated dark-mode themes. The selector
+shows a miniature card preview (surface, accent bar and title tone) plus the palette dots, and the
+chosen theme is applied to every occurrence on the grid.
+
+| Theme | Surface | Accent | Title / body |
+| --- | --- | --- | --- |
+| **Kamen Rider OOO** | `#1F1216` deep crimson-charcoal | tri-colour bar: `#EF4444` · `#F59E0B` · `#10B981` | `#FDE68A` gold title, `#F8FAFC` body |
+| **Wednesday** | `#09090B` obsidian | monochrome silver `#E4E4E7` / `#71717A` | `#FFFFFF` title, `#D4D4D8` body |
+| **Gengar** | `#24113A` shadow purple | neon violet `#A855F7` with crimson `#F43F5E` tip | `#F3E8FF` title, `#E9D5FF` body |
+| **Mobile Legends** | `#111C3D` midnight blue | gold `#EAB308` with cyan `#38BDF8` | `#FACC15` title, `#F0F9FF` body |
+
+Mobile Legends is the default for new events. All four themes keep title, time and note text at high
+contrast on their surfaces, and the accent stripe is built from solid colour segments — no gradients.
 
 ### Settings
 The **Settings** drawer (gear icon) re-renders the schedule instantly:
@@ -81,7 +97,7 @@ An event stores one slot per weekday:
 
 ```js
 {
-  id: 'ev_…', title: 'Deep work', note: '', color: '#7c8cff',
+  id: 'ev_…', title: 'Deep work', note: '', theme: 'mobile-legends',
   times: {
     1: { start: 450, duration: 180 },  // Monday   07:30–10:30
     6: { start: 450, duration: 120 }   // Saturday 07:30–09:30
@@ -89,13 +105,15 @@ An event stores one slot per weekday:
 }
 ```
 
-`start` is minutes from midnight and `duration` is in 30-minute steps.
+`start` is minutes from midnight and `duration` is in 30-minute steps. `theme` is one of
+`kamen-rider-ooo`, `wednesday`, `gengar` or `mobile-legends`.
 
 State is written to `localStorage` under the key `schedslate.state.v1` (debounced, flushed on page
 hide), restored and sanitised on load, and kept in sync between open tabs. Malformed or outdated data
-is repaired rather than crashing the app, and events saved by earlier versions
-(`{ days: [1, 6], start: 450, duration: 180 }`) are migrated by stamping the shared slot onto every
-selected day.
+is repaired rather than crashing the app. Events saved by earlier versions are migrated: a shared
+`{ days, start, duration }` slot is stamped onto every selected day, and an old flat `color` is mapped
+to the closest inspiration theme (violet/rose → Gengar, amber/orange/lime → Kamen Rider OOO, slate →
+Wednesday, blue/teal → Mobile Legends). Unknown or missing themes fall back to Mobile Legends.
 
 ---
 
@@ -105,7 +123,8 @@ selected day.
 - **Pure colours only:** every fill, border and shadow uses a flat single colour — no gradients
   anywhere in the stylesheet or in generated markup. Grid rules are real 1px elements rather than
   gradient hacks, and there are no blur filters.
-- **Task colours** are applied as flat translucent tints of the chosen accent, so text stays readable.
+- **Themes** render as flat opaque card surfaces with a solid tri-colour accent stripe and dedicated
+  title/body/secondary text tones, so every card stays readable.
 
 ---
 

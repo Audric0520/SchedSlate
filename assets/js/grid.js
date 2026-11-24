@@ -101,17 +101,13 @@
         var cols = item.cols || 1;
         var col = item.col || 0;
         var tight = height < 38;
-        var color = task.color;
+        var theme = S.themeOf(task);
         var range = U.formatRange(item.start, item.end, settings().clock);
         var style = [
             'top:' + top.toFixed(2) + 'px',
             'height:' + height.toFixed(2) + 'px',
             'left:calc(' + ((col / cols) * 100).toFixed(4) + '% + 2px)',
-            'width:calc(' + (100 / cols).toFixed(4) + '% - 4px)',
-            '--task-color:' + color,
-            '--task-border:' + U.rgba(color, 0.34),
-            '--task-bg:' + U.rgba(color, 0.15),
-            '--task-bg-hover:' + U.rgba(color, 0.25)
+            'width:calc(' + (100 / cols).toFixed(4) + '% - 4px)'
         ].join(';');
 
         var showNote = !tight && height >= 62 && task.note;
@@ -119,8 +115,10 @@
 
         return '<button type="button" class="task' + (tight ? ' is-tight' : '') + '"' +
             ' data-id="' + U.esc(task.id) + '" data-day="' + day + '"' +
+            ' data-theme="' + U.esc(theme.id) + '"' +
             ' style="' + style + '" title="' + U.esc(task.title + ' · ' + range) + '"' +
             ' aria-label="' + U.esc(label) + '">' +
+            '<span class="task-accent accent-bar" aria-hidden="true"><i></i><i></i><i></i></span>' +
             '<span class="task-text">' +
             '<span class="task-title">' + U.esc(task.title) + '</span>' +
             '<span class="task-time">' + U.esc(range) + '</span>' +

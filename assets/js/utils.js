@@ -61,39 +61,6 @@
         return Math.round(minutes / s) * s;
     }
 
-    /* ----------------------------------------------------------- colours */
-
-    function hexToRgb(hex) {
-        var value = String(hex || '').replace('#', '');
-        if (value.length === 3) {
-            value = value[0] + value[0] + value[1] + value[1] + value[2] + value[2];
-        }
-        if (!/^[0-9a-fA-F]{6}$/.test(value)) {
-            value = '8d9bb4';
-        }
-        return {
-            r: parseInt(value.slice(0, 2), 16),
-            g: parseInt(value.slice(2, 4), 16),
-            b: parseInt(value.slice(4, 6), 16)
-        };
-    }
-
-    function rgba(hex, alpha) {
-        var c = hexToRgb(hex);
-        return 'rgba(' + c.r + ', ' + c.g + ', ' + c.b + ', ' + alpha + ')';
-    }
-
-    /** Dark or light ink for text drawn directly on a solid colour. */
-    function inkOn(hex) {
-        var c = hexToRgb(hex);
-        var luminance = (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255;
-        return luminance > 0.62 ? '#0a1020' : '#ffffff';
-    }
-
-    function isHex(value) {
-        return /^#[0-9a-fA-F]{6}$/.test(String(value || ''));
-    }
-
     /* --------------------------------------------------------------- dom */
 
     function esc(value) {
@@ -103,12 +70,6 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
-    }
-
-    function el(html) {
-        var template = document.createElement('template');
-        template.innerHTML = String(html).trim();
-        return template.content.firstElementChild;
     }
 
     function each(selector, root) {
@@ -150,7 +111,6 @@
 
     global.SSUtil = {
         MIN_PER_DAY: MIN_PER_DAY,
-        pad2: pad2,
         clamp: clamp,
         uid: uid,
         normaliseMinutes: normaliseMinutes,
@@ -159,12 +119,7 @@
         formatRange: formatRange,
         durationParts: durationParts,
         snap: snap,
-        hexToRgb: hexToRgb,
-        rgba: rgba,
-        inkOn: inkOn,
-        isHex: isHex,
         esc: esc,
-        el: el,
         each: each,
         dayOrder: dayOrder,
         todayIndex: todayIndex,
