@@ -219,6 +219,7 @@
         setupTitle();
         setupToolbar();
         setupShortcuts();
+        global.SSExport.init();
 
         U.bus.on('task:new', function (detail) {
             openNewTask(detail);

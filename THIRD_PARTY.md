@@ -1,15 +1,24 @@
 # Third-party notices
 
-SchedSlate bundles two third-party assets so that the app works fully offline.
+SchedSlate bundles three third-party assets so that the app works fully offline.
 
 ## Lucide Icons
 
 - Source: https://lucide.dev (package `lucide-static` v1.73.0)
-- Used in: `assets/js/icons.js` (geometry for the 12 interface icons — close, check, clock,
+- Used in: `assets/js/icons.js` (geometry for the 14 interface icons — close, check, clock,
   chevrons, trash, reset, add, settings, pencil, sparkles, status dot — inlined as an SVG map)
 - License: ISC — full text in [`licenses/Lucide-ISC.txt`](licenses/Lucide-ISC.txt)
 
 Copyright (c) 2026 Lucide Icons and Contributors.
+
+## html-to-image
+
+- Source: https://github.com/bubkoo/html-to-image (package `html-to-image` v1.11.13)
+- Used in: `assets/vendor/html-to-image.js` (UMD bundle, vendored unmodified apart from a banner
+  comment) — renders the schedule sheet to a PNG during Save
+- License: MIT — full text in [`licenses/html-to-image-MIT.txt`](licenses/html-to-image-MIT.txt)
+
+Copyright (c) 2017-2025 W.Y.
 
 ## Inter typeface
 
