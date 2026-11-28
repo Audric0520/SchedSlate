@@ -1,7 +1,12 @@
 /* SchedSlate — save the current schedule as a high-resolution PNG.
- *  Renders a clean, self-contained sheet (title + full grid) off-screen with
- *  html-to-image (vendored under assets/vendor) so scroll boundaries, hover
- *  states and toolbar chrome never reach the exported image. */
+ *
+ *  The capture never touches the app window: a dedicated #export-root container
+ *  (schedule header + timetable only) is rendered into an off-screen stage, the
+ *  grid scroll box is unclamped and its timeline is cropped to the hours that
+ *  actually hold events (plus one 30-minute slot either side) so the PNG stays
+ *  compact and wallpaper-friendly, and html-to-image rasterises that node at 2x
+ *  on a fixed 1280px canvas. The stage is removed again as
+ *  soon as the download is triggered, so the page never flickers. */
 (function (global) {
     'use strict';
 
@@ -9,12 +14,29 @@
     var U = global.SSUtil;
     var I = global.SSI18n;
 
-    /* A 2x ratio keeps text crisp while staying inside the per-canvas limits
-       older Safari builds enforce (a 2x sheet is well under 16.7 megapixels). */
+    /* A fixed desktop layout keeps exports crisp and identical on phones: the
+       app only has the weekly view, so 1280px is the right canvas width. */
+    var EXPORT_WIDTH = 1280;
+    var EXPORT_BG = '#0f172a';
+    /* 2x is sharp on high-DPI screens and stays well inside the per-canvas
+       limits older Safari builds enforce. */
     var PIXEL_RATIO = 2;
-    var MIN_WIDTH = 1080;
-    var MAX_WIDTH = 1440;
     var running = false;
+
+    /* Vertical crop: one 30-minute slot of breathing room above and below the
+       scheduled hours, and a daytime window for a completely empty slate. */
+    var BUFFER_MINUTES = 30;
+    var DAY_MINUTES = 1440;
+    var FALLBACK_RANGE = { start: 7 * 60, end: 15 * 60 };
+
+    /* Nothing matching these ever belongs in the saved image. The container is
+       already built from the grid alone; this filter is a second safety net. */
+    var CHROME_SELECTORS = [
+        '.topbar', '.brand', '.topbar-actions', '.board-stats', '.stat',
+        '.btn', '.btn-save', '.icon-btn', '.hint-bar', '.board-foot',
+        '.toast', '.toasts', '.layer', '.modal', '.drawer', '.skip-link',
+        '.drag-ghost', '.now-line', '[data-export-hide]'
+    ];
 
     function t(key) {
         return I.t(key);
@@ -40,31 +62,193 @@
         return (slug || 'schedule') + '.png';
     }
 
-    function exportWidth() {
-        var panel = document.querySelector('.sched-panel') || document.getElementById('grid-root');
-        var width = panel ? panel.getBoundingClientRect().width : 0;
-        return Math.round(U.clamp(width || MIN_WIDTH, MIN_WIDTH, MAX_WIDTH));
+    function settings() {
+        return S.state.settings || {};
     }
 
-    function headMarkup() {
-        var eyebrow = document.getElementById('eyebrow');
-        var stats = document.getElementById('board-stats');
-        return '' +
-            '<div class="export-head">' +
-            '<div class="export-titles">' +
-            '<p class="export-eyebrow">' + U.esc(eyebrow ? eyebrow.textContent : '') + '</p>' +
-            '<h1 class="export-title">' + U.esc(scheduleTitle() || I.t('defaultTitle')) + '</h1>' +
-            '</div>' +
-            '<div class="export-stats">' + (stats ? stats.innerHTML : '') + '</div>' +
-            '</div>';
+    /** Days the grid is currently showing (respects the weekend toggle). */
+    function visibleDays() {
+        var order = U.dayOrder(settings().weekStart);
+        if (!settings().showWeekend) {
+            order = order.filter(function (day) {
+                return day !== 0 && day !== 6;
+            });
+        }
+        return order;
     }
 
     /**
-     * The live grid scrolls inside .grid-scroll and pins its head/gutter with
-     * position: sticky. Both are neutralised on the clone so the PNG shows the
-     * whole 24-hour range and no scroll furniture.
+     * Vertical window that actually holds events: earliest start minus one slot
+     * to latest end plus one slot, clamped to the day. Empty slates fall back to
+     * a daytime window instead of exporting all 24 hours.
+     */
+    function activeRange() {
+        var days = visibleDays();
+        var minStart = null;
+        var maxEnd = null;
+
+        S.state.tasks.forEach(function (task) {
+            if (!task.times) {
+                return;
+            }
+            days.forEach(function (day) {
+                var slot = task.times[day];
+                if (!slot) {
+                    return;
+                }
+                if (minStart === null || slot.start < minStart) {
+                    minStart = slot.start;
+                }
+                var end = slot.start + slot.duration;
+                if (maxEnd === null || end > maxEnd) {
+                    maxEnd = end;
+                }
+            });
+        });
+
+        if (minStart === null || maxEnd === null) {
+            return { start: FALLBACK_RANGE.start, end: FALLBACK_RANGE.end, empty: true };
+        }
+
+        var start = U.clamp(minStart - BUFFER_MINUTES, 0, DAY_MINUTES);
+        var end = U.clamp(maxEnd + BUFFER_MINUTES, 0, DAY_MINUTES);
+        if (end - start < 60) {
+            end = U.clamp(start + 60, 0, DAY_MINUTES);
+            start = U.clamp(end - 60, 0, DAY_MINUTES);
+        }
+        return { start: start, end: end, empty: false };
+    }
+
+    /** Reads an inline custom property (e.g. --body-h) without relying on regex. */
+    function inlineVar(node, name) {
+        var raw = '';
+        if (node.style && typeof node.style.getPropertyValue === 'function') {
+            raw = node.style.getPropertyValue(name) || '';
+        }
+        if (!raw) {
+            var style = node.getAttribute('style') || '';
+            var index = style.indexOf(name + ':');
+            if (index !== -1) {
+                var rest = style.slice(index + name.length + 1);
+                var stop = rest.indexOf(';');
+                raw = stop === -1 ? rest : rest.slice(0, stop);
+            }
+        }
+        return parseFloat(raw) || 0;
+    }
+
+    /** Pixels per minute used by the grid that is on screen right now. */
+    function pxPerMinute() {
+        var line = document.querySelector('#grid-root .grid-line.is-hour');
+        if (line) {
+            var top = parseFloat(line.style.top);
+            if (top > 0) {
+                return top / 60;
+            }
+        }
+        var cols = document.querySelector('#grid-root .cols');
+        if (cols) {
+            var bodyHeight = inlineVar(cols, '--body-h');
+            if (bodyHeight > 0) {
+                return bodyHeight / DAY_MINUTES;
+            }
+        }
+        return settings().compact ? 0.74 : 1.07;
+    }
+
+    /**
+     * Re-maps the cloned timeline onto [start, end]: rows outside the window are
+     * dropped, the body height shrinks, and every card/ruler mark keeps its exact
+     * position relative to the new top edge.
+     */
+    function cropToRange(clone, range, ppm) {
+        var shift = range.start * ppm;
+        var height = Math.round((range.end - range.start) * ppm);
+
+        U.each('.time-gutter, .cols', clone).forEach(function (node) {
+            node.style.setProperty('--body-h', height + 'px');
+        });
+
+        U.each('.grid-line', clone).forEach(function (node) {
+            var top = parseFloat(node.style.top);
+            if (!isFinite(top)) {
+                return;
+            }
+            /* rounding keeps float noise in top/ppm from clipping boundary rows */
+            var minute = Math.round(top / ppm);
+            if (minute <= range.start || minute >= range.end) {
+                node.parentNode.removeChild(node);
+                return;
+            }
+            node.style.top = (top - shift).toFixed(2) + 'px';
+        });
+
+        U.each('.time-label', clone).forEach(function (node) {
+            var top = parseFloat(node.style.top);
+            if (!isFinite(top)) {
+                return;
+            }
+            var minute = Math.round(top / ppm);
+            if (minute < range.start || minute >= range.end) {
+                node.parentNode.removeChild(node);
+                return;
+            }
+            node.style.top = (top - shift).toFixed(2) + 'px';
+        });
+
+        U.each('.task', clone).forEach(function (node) {
+            var top = parseFloat(node.style.top);
+            if (!isFinite(top)) {
+                return;
+            }
+            node.style.top = Math.max(0, top - shift).toFixed(2) + 'px';
+        });
+
+        return height;
+    }
+
+    /** Text-only summary ("17 blocks · 20.5 h planned") — no pill-shaped UI. */
+    function statsLine() {
+        var stats = document.getElementById('board-stats');
+        if (!stats) {
+            return '';
+        }
+        var parts = [];
+        U.each('.stat', stats).forEach(function (stat) {
+            var words = U.each('.stat-value, .stat-label', stat).map(function (node) {
+                return String(node.textContent || '').trim();
+            }).filter(Boolean);
+            var text = words.length ? words.join(' ') : String(stat.textContent || '').trim();
+            if (text) {
+                parts.push(text);
+            }
+        });
+        return parts.join(' · ');
+    }
+
+    function headNode(range) {
+        var eyebrow = document.getElementById('eyebrow');
+        var window = U.formatRange(range.start, range.end, settings().clock);
+        var stats = statsLine();
+        var meta = stats ? window + ' · ' + stats : window;
+        var head = document.createElement('header');
+        head.className = 'export-head';
+        head.innerHTML = '' +
+            '<div class="export-titles">' +
+            '<p class="export-eyebrow">' + U.esc(eyebrow ? eyebrow.textContent : '') + '</p>' +
+            '<h1 class="export-title">' + U.esc(scheduleTitle() || I.t('defaultTitle')) + '</h1>' +
+            '<p class="export-meta">' + U.esc(meta) + '</p>' +
+            '</div>';
+        return head;
+    }
+
+    /**
+     * Unclamps the cloned grid: no scroll viewport, no sticky offsets, no
+     * ghosts, and no <button> cards (so no focus ring or UA chrome can appear).
      */
     function normaliseGrid(clone) {
+        clone.removeAttribute('id');
+
         U.each('.grid-scroll', clone).forEach(function (node) {
             node.style.height = 'auto';
             node.style.maxHeight = 'none';
@@ -85,8 +269,6 @@
             }
         });
 
-        /* Cards are <button>s in the live grid; swap them for inert divs so no UA
-           button chrome (or focus ring) can leak into the static image. */
         U.each('.task', clone).forEach(function (node) {
             var card = document.createElement('div');
             Array.prototype.forEach.call(node.attributes, function (attr) {
@@ -105,32 +287,37 @@
         return clone;
     }
 
-    /** Builds the off-screen capture sheet: header title + full expanded grid. */
-    function buildSheet() {
-        var panel = document.getElementById('grid-root');
-        if (!panel) {
+    /** Dedicated container: schedule header + the active time window only. */
+    function buildExportRoot() {
+        var grid = document.getElementById('grid-root');
+        if (!grid) {
             return null;
         }
 
-        var width = exportWidth();
-        var sheet = document.createElement('div');
-        sheet.className = 'export-sheet';
-        sheet.setAttribute('aria-hidden', 'true');
-        sheet.style.width = width + 'px';
-        sheet.innerHTML = headMarkup();
+        var range = activeRange();
+        var ppm = pxPerMinute();
 
-        var clone = panel.cloneNode(true);
-        clone.removeAttribute('id');
-        sheet.appendChild(normaliseGrid(clone));
+        var root = document.createElement('div');
+        root.id = 'export-root';
+        root.className = 'export-canvas is-exporting';
+        root.setAttribute('role', 'presentation');
+        root.style.width = EXPORT_WIDTH + 'px';
 
-        return { sheet: sheet, width: width };
+        var clone = normaliseGrid(grid.cloneNode(true));
+        cropToRange(clone, range, ppm);
+
+        root.appendChild(headNode(range));
+        root.appendChild(clone);
+        return root;
     }
 
-    function mount(sheet) {
+    /** Off-screen stage: `position: fixed` far to the left, no layout flicker. */
+    function mount(root) {
         var stage = document.createElement('div');
         stage.className = 'export-stage';
         stage.setAttribute('aria-hidden', 'true');
-        stage.appendChild(sheet);
+        stage.style.cssText = 'position:fixed;top:0;left:-9999px;z-index:-1;pointer-events:none;';
+        stage.appendChild(root);
         document.body.appendChild(stage);
         return stage;
     }
@@ -160,22 +347,34 @@
         });
     }
 
-    /** Natural height of the fully expanded sheet (never the clipped viewport). */
-    function sheetHeight(sheet) {
-        var rect = sheet.getBoundingClientRect();
-        var height = rect && rect.height ? rect.height : (sheet.offsetHeight || sheet.scrollHeight || 0);
+    /** Natural height of the fully expanded canvas (never the clipped viewport). */
+    function canvasHeight(root) {
+        var rect = root.getBoundingClientRect();
+        var height = rect && rect.height ? rect.height : (root.offsetHeight || root.scrollHeight || 0);
         return Math.max(1, Math.ceil(height));
     }
 
-    function background() {
-        var value = global.getComputedStyle(document.documentElement).getPropertyValue('--bg');
-        value = String(value || '').trim();
-        return value || '#080b13';
+    function captureOptions(root) {
+        return {
+            pixelRatio: PIXEL_RATIO,
+            backgroundColor: EXPORT_BG,
+            width: EXPORT_WIDTH,
+            height: canvasHeight(root),
+            cacheBust: false,
+            filter: function (node) {
+                if (!node || node.nodeType !== 1 || !node.matches) {
+                    return true;
+                }
+                return !CHROME_SELECTORS.some(function (selector) {
+                    return node.matches(selector);
+                });
+            }
+        };
     }
 
     /**
-     * Renders the sheet. Resolves with { blob } (preferred) or { dataUrl } so the
-     * caller can download without holding a multi-megabyte string around.
+     * Renders the isolated canvas. Resolves with { blob } (preferred) or
+     * { dataUrl }, and always tears the off-screen stage down again.
      */
     function render() {
         var lib = global.htmlToImage;
@@ -183,41 +382,45 @@
             return Promise.reject(new Error('html-to-image is not loaded'));
         }
 
-        var built = buildSheet();
-        if (!built) {
+        var root = buildExportRoot();
+        if (!root) {
             return Promise.reject(new Error('grid is not mounted'));
         }
 
-        var stage = mount(built.sheet);
+        var stage = null;
 
-        var options = {
-            pixelRatio: PIXEL_RATIO,
-            cacheBust: false,
-            backgroundColor: background(),
-            width: built.width,
-            height: sheetHeight(built.sheet)
-        };
+        try {
+            stage = mount(root);
+        } catch (error) {
+            unmount(stage);
+            return Promise.reject(error);
+        }
+
+        function cleanup() {
+            unmount(stage);
+        }
+
+        var options = captureOptions(root);
 
         return fontsReady()
             .then(nextFrame)
             .then(function () {
-                /* the sheet can reflow once webfonts land, so measure again */
-                options.height = sheetHeight(built.sheet);
-                return lib.toBlob(built.sheet, options);
-            })
-            .then(function (blob) {
-                if (blob) {
-                    return { blob: blob };
-                }
-                return lib.toPng(built.sheet, options).then(function (dataUrl) {
-                    return { dataUrl: dataUrl };
+                /* the canvas can reflow once webfonts land, so measure again */
+                options.height = canvasHeight(root);
+                return lib.toBlob(root, options).then(function (blob) {
+                    if (blob) {
+                        return { blob: blob };
+                    }
+                    return lib.toPng(root, options).then(function (dataUrl) {
+                        return { dataUrl: dataUrl };
+                    });
                 });
             })
             .then(function (result) {
-                unmount(stage);
+                cleanup();
                 return result;
             }, function (error) {
-                unmount(stage);
+                cleanup();
                 throw error;
             });
     }
@@ -317,7 +520,13 @@
             return running;
         },
         /* internals exposed for the jsdom suite */
-        _buildSheet: buildSheet,
-        _render: render
+        _buildRoot: buildExportRoot,
+        _render: render,
+        _range: activeRange,
+        _pxPerMinute: pxPerMinute,
+        _crop: cropToRange,
+        _chromeSelectors: CHROME_SELECTORS,
+        WIDTH: EXPORT_WIDTH,
+        PIXEL_RATIO: PIXEL_RATIO
     };
 })(window);
