@@ -92,11 +92,18 @@ device — PNG is the only export format.
 - Capturing happens on an off-screen stage (`position: fixed; left: -9999px`), so the page never
   flickers while the image is built. The stage is removed as soon as the download fires, on success
   and on failure alike.
+- The exported timeline is cropped to the hours that actually hold events: the earliest start and the
+  latest end across the visible days, plus one 30-minute slot of breathing room above and below
+  (clamped to the day). Rows outside that window are dropped, the body height shrinks, and every card
+  and timestamp is re-based so events stay exactly on their real start/end. A completely empty slate
+  exports a daytime **07:00 – 15:00** window instead of all 24 hours. The header prints the window
+  (e.g. *06:30 – 21:00 · 17 blocks · 20.5 h planned*). The live app is untouched — it always keeps the
+  full 00:00 – 23:30 grid.
 - The cloned grid is unclamped (`height: auto`, `max-height: none`, `overflow: visible`) and its sticky
-  headers flattened, so the whole **00:00 – 23:30** range and every active day render without being
-  cut off by the scroll viewport.
+  headers flattened, so nothing is cut off by the scroll viewport.
 - The canvas is a fixed **1280 px** desktop layout with **32 px** outer padding on a flat `#0F172A`
-  slate background, so exports from a phone or a narrow window look the same as from a wide monitor.
+  slate background, so exports from a phone or a narrow window look the same as from a wide monitor,
+  and the cropped height keeps the image within a widescreen-friendly aspect ratio.
 - An `is-exporting` class on the canvas hides live markers (the "now" line), hover states, focus rings
   and scrollbars during the capture.
 - Rendering is done with `html-to-image` at **2× pixel ratio**, so 30-minute rules, timestamps, Lucide

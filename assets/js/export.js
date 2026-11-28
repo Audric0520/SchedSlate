@@ -2,8 +2,10 @@
  *
  *  The capture never touches the app window: a dedicated #export-root container
  *  (schedule header + timetable only) is rendered into an off-screen stage, the
- *  grid scroll box is unclamped so the whole 00:00–23:30 day is included, and
- *  html-to-image rasterises just that node at 2x. The stage is removed again as
+ *  grid scroll box is unclamped and its timeline is cropped to the hours that
+ *  actually hold events (plus one 30-minute slot either side) so the PNG stays
+ *  compact and wallpaper-friendly, and html-to-image rasterises that node at 2x
+ *  on a fixed 1280px canvas. The stage is removed again as
  *  soon as the download is triggered, so the page never flickers. */
 (function (global) {
     'use strict';
@@ -20,6 +22,12 @@
        limits older Safari builds enforce. */
     var PIXEL_RATIO = 2;
     var running = false;
+
+    /* Vertical crop: one 30-minute slot of breathing room above and below the
+       scheduled hours, and a daytime window for a completely empty slate. */
+    var BUFFER_MINUTES = 30;
+    var DAY_MINUTES = 1440;
+    var FALLBACK_RANGE = { start: 7 * 60, end: 15 * 60 };
 
     /* Nothing matching these ever belongs in the saved image. The container is
        already built from the grid alone; this filter is a second safety net. */
@@ -54,6 +62,151 @@
         return (slug || 'schedule') + '.png';
     }
 
+    function settings() {
+        return S.state.settings || {};
+    }
+
+    /** Days the grid is currently showing (respects the weekend toggle). */
+    function visibleDays() {
+        var order = U.dayOrder(settings().weekStart);
+        if (!settings().showWeekend) {
+            order = order.filter(function (day) {
+                return day !== 0 && day !== 6;
+            });
+        }
+        return order;
+    }
+
+    /**
+     * Vertical window that actually holds events: earliest start minus one slot
+     * to latest end plus one slot, clamped to the day. Empty slates fall back to
+     * a daytime window instead of exporting all 24 hours.
+     */
+    function activeRange() {
+        var days = visibleDays();
+        var minStart = null;
+        var maxEnd = null;
+
+        S.state.tasks.forEach(function (task) {
+            if (!task.times) {
+                return;
+            }
+            days.forEach(function (day) {
+                var slot = task.times[day];
+                if (!slot) {
+                    return;
+                }
+                if (minStart === null || slot.start < minStart) {
+                    minStart = slot.start;
+                }
+                var end = slot.start + slot.duration;
+                if (maxEnd === null || end > maxEnd) {
+                    maxEnd = end;
+                }
+            });
+        });
+
+        if (minStart === null || maxEnd === null) {
+            return { start: FALLBACK_RANGE.start, end: FALLBACK_RANGE.end, empty: true };
+        }
+
+        var start = U.clamp(minStart - BUFFER_MINUTES, 0, DAY_MINUTES);
+        var end = U.clamp(maxEnd + BUFFER_MINUTES, 0, DAY_MINUTES);
+        if (end - start < 60) {
+            end = U.clamp(start + 60, 0, DAY_MINUTES);
+            start = U.clamp(end - 60, 0, DAY_MINUTES);
+        }
+        return { start: start, end: end, empty: false };
+    }
+
+    /** Reads an inline custom property (e.g. --body-h) without relying on regex. */
+    function inlineVar(node, name) {
+        var raw = '';
+        if (node.style && typeof node.style.getPropertyValue === 'function') {
+            raw = node.style.getPropertyValue(name) || '';
+        }
+        if (!raw) {
+            var style = node.getAttribute('style') || '';
+            var index = style.indexOf(name + ':');
+            if (index !== -1) {
+                var rest = style.slice(index + name.length + 1);
+                var stop = rest.indexOf(';');
+                raw = stop === -1 ? rest : rest.slice(0, stop);
+            }
+        }
+        return parseFloat(raw) || 0;
+    }
+
+    /** Pixels per minute used by the grid that is on screen right now. */
+    function pxPerMinute() {
+        var line = document.querySelector('#grid-root .grid-line.is-hour');
+        if (line) {
+            var top = parseFloat(line.style.top);
+            if (top > 0) {
+                return top / 60;
+            }
+        }
+        var cols = document.querySelector('#grid-root .cols');
+        if (cols) {
+            var bodyHeight = inlineVar(cols, '--body-h');
+            if (bodyHeight > 0) {
+                return bodyHeight / DAY_MINUTES;
+            }
+        }
+        return settings().compact ? 0.74 : 1.07;
+    }
+
+    /**
+     * Re-maps the cloned timeline onto [start, end]: rows outside the window are
+     * dropped, the body height shrinks, and every card/ruler mark keeps its exact
+     * position relative to the new top edge.
+     */
+    function cropToRange(clone, range, ppm) {
+        var shift = range.start * ppm;
+        var height = Math.round((range.end - range.start) * ppm);
+
+        U.each('.time-gutter, .cols', clone).forEach(function (node) {
+            node.style.setProperty('--body-h', height + 'px');
+        });
+
+        U.each('.grid-line', clone).forEach(function (node) {
+            var top = parseFloat(node.style.top);
+            if (!isFinite(top)) {
+                return;
+            }
+            /* rounding keeps float noise in top/ppm from clipping boundary rows */
+            var minute = Math.round(top / ppm);
+            if (minute <= range.start || minute >= range.end) {
+                node.parentNode.removeChild(node);
+                return;
+            }
+            node.style.top = (top - shift).toFixed(2) + 'px';
+        });
+
+        U.each('.time-label', clone).forEach(function (node) {
+            var top = parseFloat(node.style.top);
+            if (!isFinite(top)) {
+                return;
+            }
+            var minute = Math.round(top / ppm);
+            if (minute < range.start || minute >= range.end) {
+                node.parentNode.removeChild(node);
+                return;
+            }
+            node.style.top = (top - shift).toFixed(2) + 'px';
+        });
+
+        U.each('.task', clone).forEach(function (node) {
+            var top = parseFloat(node.style.top);
+            if (!isFinite(top)) {
+                return;
+            }
+            node.style.top = Math.max(0, top - shift).toFixed(2) + 'px';
+        });
+
+        return height;
+    }
+
     /** Text-only summary ("17 blocks · 20.5 h planned") — no pill-shaped UI. */
     function statsLine() {
         var stats = document.getElementById('board-stats');
@@ -73,15 +226,18 @@
         return parts.join(' · ');
     }
 
-    function headNode() {
+    function headNode(range) {
         var eyebrow = document.getElementById('eyebrow');
+        var window = U.formatRange(range.start, range.end, settings().clock);
+        var stats = statsLine();
+        var meta = stats ? window + ' · ' + stats : window;
         var head = document.createElement('header');
         head.className = 'export-head';
         head.innerHTML = '' +
             '<div class="export-titles">' +
             '<p class="export-eyebrow">' + U.esc(eyebrow ? eyebrow.textContent : '') + '</p>' +
             '<h1 class="export-title">' + U.esc(scheduleTitle() || I.t('defaultTitle')) + '</h1>' +
-            '<p class="export-meta">' + U.esc(statsLine()) + '</p>' +
+            '<p class="export-meta">' + U.esc(meta) + '</p>' +
             '</div>';
         return head;
     }
@@ -131,12 +287,15 @@
         return clone;
     }
 
-    /** Dedicated container: schedule header + full timetable, nothing else. */
+    /** Dedicated container: schedule header + the active time window only. */
     function buildExportRoot() {
         var grid = document.getElementById('grid-root');
         if (!grid) {
             return null;
         }
+
+        var range = activeRange();
+        var ppm = pxPerMinute();
 
         var root = document.createElement('div');
         root.id = 'export-root';
@@ -144,8 +303,11 @@
         root.setAttribute('role', 'presentation');
         root.style.width = EXPORT_WIDTH + 'px';
 
-        root.appendChild(headNode());
-        root.appendChild(normaliseGrid(grid.cloneNode(true)));
+        var clone = normaliseGrid(grid.cloneNode(true));
+        cropToRange(clone, range, ppm);
+
+        root.appendChild(headNode(range));
+        root.appendChild(clone);
         return root;
     }
 
@@ -360,6 +522,9 @@
         /* internals exposed for the jsdom suite */
         _buildRoot: buildExportRoot,
         _render: render,
+        _range: activeRange,
+        _pxPerMinute: pxPerMinute,
+        _crop: cropToRange,
         _chromeSelectors: CHROME_SELECTORS,
         WIDTH: EXPORT_WIDTH,
         PIXEL_RATIO: PIXEL_RATIO
