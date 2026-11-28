@@ -285,6 +285,50 @@ svg.icon {
     color: #ffc2cc;
 }
 
+/* save / export as PNG */
+.btn-save {
+    background: var(--accent-soft);
+    border-color: var(--accent-line);
+    color: #ccd4ff;
+}
+
+.btn-save:hover {
+    background: rgba(124, 140, 255, 0.24);
+    border-color: rgba(150, 162, 255, 0.62);
+    color: #ffffff;
+}
+
+.btn-save:disabled {
+    cursor: progress;
+    color: var(--text-dim);
+}
+
+.btn-save .save-spinner {
+    display: none;
+}
+
+.btn-save.is-busy .save-download {
+    display: none;
+}
+
+.btn-save.is-busy .save-spinner {
+    display: inline-flex;
+}
+
+.btn-save.is-busy .save-spinner .icon {
+    animation: spin 0.9s linear infinite;
+}
+
+.btn-save.is-unavailable {
+    opacity: 0.5;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .btn-danger:hover {
     background: rgba(251, 113, 133, 0.24);
     color: #ffe0e5;
@@ -1498,6 +1542,82 @@ input[type="range"]::-moz-range-thumb {
     color: var(--muted-2);
 }
 
+/* ---------------------------------------------------- export sheet (PNG) */
+/* The sheet is rendered inside .export-stage far off to the left: html-to-image
+   reads its layout and computed styles, so it never flashes on screen. */
+.export-stage {
+    position: fixed;
+    top: 0;
+    left: -20000px;
+    z-index: -1;
+    pointer-events: none;
+}
+
+.export-sheet {
+    box-sizing: border-box;
+    padding: 26px 26px 28px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+}
+
+.export-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 22px;
+    flex-wrap: wrap;
+    padding: 2px 2px 18px;
+}
+
+.export-eyebrow {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.export-title {
+    margin-top: 6px;
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
+.export-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* stand-in for the .sched-panel frame that wraps the live grid */
+.export-sheet .grid-root {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--line);
+    background: var(--surface-0);
+    overflow: hidden;
+}
+
+.export-sheet .grid-scroll {
+    overflow: visible;
+    height: auto;
+    max-height: none;
+    scrollbar-width: none;
+}
+
+.export-sheet .grid-scroll::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.export-sheet .task {
+    transform: none;
+}
+
 /* ---------------------------------------------------------------- toasts */
 .toasts {
     position: fixed;
@@ -1699,6 +1819,17 @@ kbd {
     .btn-icon {
         width: 37px;
         height: 37px;
+    }
+
+    /* keep the toolbar to three compact controls on phones */
+    .btn-save {
+        width: 37px;
+        height: 37px;
+        padding: 0;
+    }
+
+    .btn-save .save-label {
+        display: none;
     }
 
     .modal {

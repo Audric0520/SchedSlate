@@ -80,6 +80,24 @@ chosen theme is applied to every occurrence on the grid.
 Mobile Legends is the default for new events. All four themes keep title, time and note text at high
 contrast on their surfaces, and the accent stripe is built from solid colour segments — no gradients.
 
+### Save as PNG
+
+The **Save** button in the toolbar renders the schedule to a PNG and downloads it straight to your
+device — PNG is the only export format.
+
+- The image contains the schedule header (date line, your title, the block/hour counts) plus the full
+  24-hour grid exactly as it looks now: weekend toggle, 12h/24h clock, compact density and every
+  **Theme Inspiration** card style are respected.
+- Rendering happens on an off-screen copy of the grid, so scroll position, sticky headers, hover
+  states, focus rings and toolbar chrome never leak into the picture, and the whole day is captured
+  instead of just the part that happened to be scrolled into view.
+- The capture runs at **2× pixel ratio** for crisp text on high-DPI screens, with the app's dark
+  background baked in (no transparency).
+- The file is named after your schedule title: *My Schedule* → `my-schedule.png`, with `schedule.png`
+  as the fallback for empty or non-latin titles.
+- While the image renders the button shows a spinner and *Rendering…*; a toast confirms
+  *Schedule saved as PNG* (or reports a failure without breaking the app).
+
 ### Settings
 The **Settings** drawer (gear icon) re-renders the schedule instantly:
 
@@ -144,18 +162,20 @@ Wednesday, blue/teal → Mobile Legends). Unknown or missing themes fall back to
 index.html               semantic shell: toolbar, title, grid mount, layers
 assets/styles.css        design tokens, dark theme, grid, modal, drawer, responsive rules
 assets/fonts/            Inter variable (latin subset), self-hosted
-assets/js/icons.js       the 12 interface icons (Lucide geometry + inline SVG helper)
+assets/js/icons.js       the 14 interface icons (Lucide geometry + inline SVG helper)
 assets/js/utils.js       time/colour math, escaping, event bus
 assets/js/i18n.js        en + de dictionaries, date/time formatting
 assets/js/store.js       state, validation, localStorage, sample data
 assets/js/grid.js        weekly timeline rendering and pointer gestures
 assets/js/modals.js      task modal, settings drawer, toasts
+assets/js/export.js      off-screen sheet build + PNG capture and download
 assets/js/app.js         bootstrap, toolbar, title editing, shortcuts
-licenses/                ISC (Lucide) and OFL (Inter) license texts
+assets/vendor/           html-to-image 1.11.13 (MIT) for the PNG capture
+licenses/                ISC (Lucide), OFL (Inter) and MIT (html-to-image) texts
 ```
 
-No frameworks, no bundler, no runtime network calls: every asset is local, so the app works offline and
-loads instantly.
+No frameworks, no bundler, no runtime network calls: every asset — including the html-to-image bundle
+used for PNG export — is local, so the app works offline and loads instantly.
 
 ---
 
@@ -167,6 +187,8 @@ loads instantly.
   close and close on `Esc` or backdrop click.
 - Visible focus rings, labelled icon-only buttons, live-region toasts, `prefers-reduced-motion` support
   and a skip link.
+- The Save button is labelled *Save as PNG* for screen readers, exposes `aria-busy` while the image
+  renders, and its spinner animation is disabled for reduced-motion users.
 - `color-scheme: dark` plus native `<select>` controls keep form UI consistent in dark mode.
 
 ---
