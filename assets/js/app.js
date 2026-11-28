@@ -155,6 +155,137 @@
         });
     }
 
+    /* ------------------------------------------------------------ save menu */
+
+    function setupSaveMenu() {
+        var btn = document.getElementById('btn-save');
+        var menu = document.getElementById('save-menu');
+        if (!btn || !menu) {
+            return;
+        }
+
+        function items() {
+            return U.each('.save-item', menu);
+        }
+
+        function open() {
+            menu.hidden = false;
+            btn.setAttribute('aria-expanded', 'true');
+            var first = items()[0];
+            if (first) {
+                first.focus();
+            }
+        }
+
+        function close(returnFocus) {
+            if (menu.hidden) {
+                return;
+            }
+            menu.hidden = true;
+            btn.setAttribute('aria-expanded', 'false');
+            if (returnFocus) {
+                btn.focus();
+            }
+        }
+
+        btn.addEventListener('click', function (event) {
+            event.stopPropagation();
+            if (menu.hidden) {
+                open();
+            } else {
+                close(false);
+            }
+        });
+
+        btn.addEventListener('keydown', function (event) {
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                open();
+            }
+        });
+
+        menu.addEventListener('click', function (event) {
+            var item = event.target.closest('[data-save]');
+            if (!item) {
+                return;
+            }
+            close(true);
+            if (item.disabled) {
+                return;
+            }
+            if (item.getAttribute('data-save') === 'png') {
+                global.SSExport.save();
+            } else if (item.getAttribute('data-save') === 'json') {
+                global.SSBackup.download();
+            }
+        });
+
+        menu.addEventListener('keydown', function (event) {
+            var list = items();
+            if (!list.length) {
+                return;
+            }
+            var index = list.indexOf(document.activeElement);
+
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                var step = event.key === 'ArrowDown' ? 1 : -1;
+                var next = (index + step + list.length) % list.length;
+                list[next].focus();
+            } else if (event.key === 'Home' || event.key === 'End') {
+                event.preventDefault();
+                list[event.key === 'Home' ? 0 : list.length - 1].focus();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                close(true);
+            } else if (event.key === 'Tab') {
+                close(false);
+            }
+        });
+
+        document.addEventListener('click', function (event) {
+            if (menu.hidden) {
+                return;
+            }
+            if (menu.contains(event.target) || btn.contains(event.target)) {
+                return;
+            }
+            close(false);
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && !menu.hidden) {
+                close(true);
+            }
+        });
+    }
+
+    /* ---------------------------------------------------------- JSON import */
+
+    function setupImport() {
+        var trigger = document.getElementById('btn-import');
+        var input = document.getElementById('import-input');
+        if (!trigger || !input) {
+            return;
+        }
+
+        trigger.addEventListener('click', function () {
+            input.click();
+        });
+
+        input.addEventListener('change', function () {
+            var file = input.files && input.files[0];
+            /* reset right away so picking the same file again still fires change */
+            input.value = '';
+            if (!file) {
+                return;
+            }
+            global.SSBackup.importFile(file).then(function (result) {
+                Modals.toast(result && result.ok ? I.t('imported') : I.t('importInvalid'));
+            });
+        });
+    }
+
     function isTypingTarget(target) {
         if (!target) {
             return false;
@@ -219,6 +350,8 @@
         setupTitle();
         setupToolbar();
         setupShortcuts();
+        setupSaveMenu();
+        setupImport();
         global.SSExport.init();
 
         U.bus.on('task:new', function (detail) {

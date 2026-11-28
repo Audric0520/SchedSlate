@@ -31,11 +31,41 @@
                     <span data-i18n="add">Add</span>
                 </button>
 
-                <button type="button" class="btn btn-ghost btn-save" id="btn-save"
-                        aria-label="Save as PNG" data-i18n-aria="saveHint" title="Save as PNG" data-i18n-title="saveHint">
-                    <span class="ico save-download" data-icon="download" aria-hidden="true"></span>
-                    <span class="ico save-spinner" data-icon="loader-circle" aria-hidden="true"></span>
-                    <span class="save-label" data-save-label data-i18n="save">Save</span>
+                <div class="save-wrap">
+                    <button type="button" class="btn btn-ghost btn-save" id="btn-save"
+                            aria-haspopup="menu" aria-expanded="false" aria-controls="save-menu"
+                            aria-label="Save options" data-i18n-aria="saveMenu"
+                            title="Save options" data-i18n-title="saveMenu">
+                        <span class="ico save-download" data-icon="download" aria-hidden="true"></span>
+                        <span class="ico save-spinner" data-icon="loader-circle" aria-hidden="true"></span>
+                        <span class="save-label" data-save-label data-i18n="save">Save</span>
+                        <span class="save-caret ico" data-icon="chevron-down" aria-hidden="true"></span>
+                    </button>
+
+                    <div class="save-menu" id="save-menu" role="menu" aria-label="Save options"
+                         data-i18n-aria="saveMenu" hidden>
+                        <button type="button" class="save-item" role="menuitem" data-save="png">
+                            <span class="save-item-ico ico" data-icon="download" aria-hidden="true"></span>
+                            <span class="save-item-copy">
+                                <span class="save-item-title" data-i18n="savePng">Save as PNG</span>
+                                <span class="save-item-note" data-i18n="savePngNote">Wallpaper-ready image</span>
+                            </span>
+                        </button>
+                        <button type="button" class="save-item" role="menuitem" data-save="json">
+                            <span class="save-item-ico ico" data-icon="file-text" aria-hidden="true"></span>
+                            <span class="save-item-copy">
+                                <span class="save-item-title" data-i18n="saveJson">Save as JSON</span>
+                                <span class="save-item-note" data-i18n="saveJsonNote">Backup you can import later</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-ghost btn-import" id="btn-import"
+                        aria-label="Import a schedule (JSON)" data-i18n-aria="importHint"
+                        title="Import a schedule (JSON)" data-i18n-title="importHint">
+                    <span class="ico" data-icon="upload" aria-hidden="true"></span>
+                    <span class="import-label" data-i18n="importAction">Import</span>
                 </button>
 
                 <button type="button" class="btn btn-icon" id="btn-settings" aria-label="Settings" data-i18n-aria="settings" title="Settings" data-i18n-title="settings">
@@ -83,6 +113,8 @@
         </main>
     </div>
 
+    <input type="file" id="import-input" class="file-input" accept=".json,application/json" hidden />
+
     <div id="modal-layer" class="layer" hidden></div>
     <div id="toast-layer" class="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
 
@@ -99,6 +131,7 @@
     <script src="./assets/js/grid.js" defer></script>
     <script src="./assets/js/modals.js" defer></script>
     <script src="./assets/js/export.js" defer></script>
+    <script src="./assets/js/backup.js" defer></script>
     <script src="./assets/js/app.js" defer></script>
 </body>
 </html>

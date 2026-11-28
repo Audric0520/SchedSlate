@@ -387,6 +387,31 @@
         emit('seed');
     }
 
+    /**
+     * Replaces the whole slate (used by JSON import). Title, settings and tasks
+     * all pass through the same sanitisers as stored data, then the new state is
+     * emitted and written to localStorage immediately.
+     */
+    function replaceSchedule(payload) {
+        var raw = isPlainObject(payload) ? payload : {};
+        var next = defaultState();
+
+        if (typeof raw.title === 'string' && raw.title.trim()) {
+            next.title = raw.title.trim().slice(0, 80);
+        }
+        /* keep the user's current grid preferences unless the file sets them */
+        next.settings = sanitizeSettings(Object.assign({}, state.settings, raw.settings));
+        if (Array.isArray(raw.tasks)) {
+            next.tasks = raw.tasks.map(sanitizeTask).filter(Boolean).slice(0, 800);
+        }
+
+        state = next;
+        global.SSI18n.setLang(state.settings.language);
+        emit('import');
+        flush();
+        return state;
+    }
+
     function subscribe(handler) {
         listeners.push(handler);
         return function unsubscribe() {
@@ -446,6 +471,7 @@
         countBlocks: countBlocks,
         totalPlannedMinutes: totalPlannedMinutes,
         reset: reset,
-        seedSample: seedSample
+        seedSample: seedSample,
+        replaceSchedule: replaceSchedule
     };
 })(window);
