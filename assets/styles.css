@@ -329,6 +329,100 @@ svg.icon {
     }
 }
 
+/* save menu (PNG / JSON) + import */
+.save-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.btn-save .save-caret {
+    margin-left: -1px;
+    font-size: 14px;
+    opacity: 0.7;
+}
+
+.save-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 75;
+    width: 264px;
+    max-width: calc(100vw - 32px);
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid var(--line-strong);
+    background: #121a29;
+    box-shadow: var(--shadow-lg);
+    animation: pop-in 0.14s var(--ease);
+}
+
+.save-menu[hidden] {
+    display: none;
+}
+
+.save-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+}
+
+.save-item:hover,
+.save-item:focus-visible {
+    background: var(--surface-3);
+    border-color: var(--line);
+}
+
+.save-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.save-item-ico {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: #c9d2ff;
+    font-size: 15px;
+}
+
+.save-item-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.save-item-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.save-item-note {
+    font-size: 11.5px;
+    color: var(--muted);
+}
+
+.btn-import {
+    gap: 7px;
+}
+
+.file-input {
+    display: none;
+}
+
 .btn-danger:hover {
     background: rgba(251, 113, 133, 0.24);
     color: #ffe0e5;
@@ -1844,15 +1938,22 @@ kbd {
         height: 37px;
     }
 
-    /* keep the toolbar to three compact controls on phones */
-    .btn-save {
+    /* keep the toolbar to compact icon controls on phones */
+    .btn-save,
+    .btn-import {
         width: 37px;
         height: 37px;
         padding: 0;
     }
 
-    .btn-save .save-label {
+    .btn-save .save-label,
+    .btn-save .save-caret,
+    .btn-import .import-label {
         display: none;
+    }
+
+    .save-menu {
+        width: 244px;
     }
 
     .modal {

@@ -52,14 +52,7 @@
 
     /** "Fall Semester" → "fall-semester.png"; empty/odd titles → "schedule.png". */
     function fileName() {
-        var slug = scheduleTitle()
-            .toLowerCase()
-            .replace(/['\u2019\u2018"]/g, '')
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .slice(0, 64)
-            .replace(/-+$/g, '');
-        return (slug || 'schedule') + '.png';
+        return U.slugify(scheduleTitle(), 'schedule') + '.png';
     }
 
     function settings() {
@@ -426,22 +419,7 @@
     }
 
     function download(href, revoke) {
-        var link = document.createElement('a');
-        link.href = href;
-        link.download = fileName();
-        link.rel = 'noopener';
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-
-        global.setTimeout(function () {
-            if (link.parentNode) {
-                link.parentNode.removeChild(link);
-            }
-            if (revoke) {
-                URL.revokeObjectURL(href);
-            }
-        }, 4000);
+        U.download(href, fileName(), revoke);
     }
 
     function setBusy(busy) {
@@ -499,16 +477,12 @@
     }
 
     function init() {
-        var btn = button();
-        if (!btn) {
-            return;
-        }
-        btn.addEventListener('click', function () {
-            save();
-        });
         if (!global.htmlToImage) {
-            btn.disabled = true;
-            btn.classList.add('is-unavailable');
+            var item = document.querySelector('[data-save="png"]');
+            if (item) {
+                item.disabled = true;
+                item.classList.add('is-unavailable');
+            }
         }
     }
 

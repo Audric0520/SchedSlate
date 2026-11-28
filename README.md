@@ -80,10 +80,12 @@ chosen theme is applied to every occurrence on the grid.
 Mobile Legends is the default for new events. All four themes keep title, time and note text at high
 contrast on their surfaces, and the accent stripe is built from solid colour segments — no gradients.
 
-### Save as PNG
+### Save, export and import
 
-The **Save** button in the toolbar renders the schedule to a PNG and downloads it straight to your
-device — PNG is the only export format.
+The **Save** button opens a small menu with the two export formats, and **Import** reads a `.json`
+backup from your device. PNG is the only image format; JSON is the only data format.
+
+#### Save as PNG
 
 - Only the schedule is captured. The image is rendered from a dedicated `#export-root` container that
   holds the schedule header (date line, title, plain-text block/hour summary) and the timetable grid,
@@ -112,6 +114,61 @@ device — PNG is the only export format.
   as the fallback for empty or non-latin titles.
 - While the image renders the button shows a spinner and *Rendering…*; a toast confirms
   *Schedule saved as PNG* (or reports a failure without breaking the app).
+
+#### Save as JSON
+
+Downloads the whole slate as formatted (`JSON.stringify(data, null, 2)`), versioned JSON — a backup
+you can re-import or edit by hand:
+
+```json
+{
+  "version": 1,
+  "exportedAt": "2026-11-28T14:00:00.000Z",
+  "schedule": {
+    "title": "Fall Semester",
+    "settings": { "view": "weekly", "showWeekends": true, "timeFormat": "24h", "language": "en" },
+    "events": [
+      {
+        "id": "ev_a",
+        "title": "Study Session",
+        "note": "Chapter 4 review",
+        "day": "monday",
+        "startSlot": 18,
+        "durationSlots": 3,
+        "theme": "gengar",
+        "icon": null
+      }
+    ]
+  }
+}
+```
+
+- One entry per weekday occurrence, so a recurring event appears once per day but keeps a shared `id`.
+- Slots are 30-minute units: `startSlot: 18` is 09:00 and `durationSlots: 3` is 90 minutes.
+- `day` is a lowercase weekday name (`sunday` … `saturday`); `theme` is one of the four Theme
+  Inspirations. The app has no event icons, so `icon` is always `null` and ignored on import.
+- The file is named after your schedule title: *Fall Semester* → `fall-semester.json`, falling back to
+  `schedule.json`.
+
+#### Import JSON
+
+**Import** opens a file picker (`.json, application/json`) and replaces the current slate with the
+file's contents, writing to `localStorage` immediately.
+
+- The payload is parsed inside `try/catch`, and the import only goes ahead when it contains a
+  `schedule` object with an `events` array. For backwards compatibility a bare `{ "events": [...] }`
+  payload and the app's own stored shape (`{ "title", "settings", "tasks": [{ "times": … }] }`) are
+  accepted too.
+- Every event needs `title`, `day`, `startSlot` and `durationSlots`; unusable entries are skipped, and
+  a file whose events are all unusable is rejected.
+- Optional fields are filled in: an unknown or missing `theme` falls back to the closest Theme
+  Inspiration (legacy flat `color` values are mapped too), a missing `note` becomes empty, and `day`
+  accepts full names, three-letter names or `0`–`6`.
+- Grid settings in the payload are applied (`timeFormat` → clock, `showWeekends` → weekend toggle,
+  `language` → UI language); anything absent keeps your current preferences.
+- A toast confirms *Schedule imported successfully*, or reports *Invalid schedule JSON file* without
+  touching the current schedule. The file input is reset afterwards, so the same file can be picked
+  again.
 
 ### Settings
 The **Settings** drawer (gear icon) re-renders the schedule instantly:
@@ -167,7 +224,8 @@ Wednesday, blue/teal → Mobile Legends). Unknown or missing themes fall back to
 | --- | --- |
 | `N` | New event |
 | `Enter` | Save the title while renaming, or submit the modal |
-| `Esc` | Close the modal or drawer |
+| `Esc` | Close the modal, drawer or the Save menu |
+| `↑` / `↓`, `Home` / `End` | Move through the Save menu items |
 
 ---
 
@@ -184,6 +242,7 @@ assets/js/store.js       state, validation, localStorage, sample data
 assets/js/grid.js        weekly timeline rendering and pointer gestures
 assets/js/modals.js      task modal, settings drawer, toasts
 assets/js/export.js      isolated #export-root build, PNG capture and download
+assets/js/backup.js      versioned JSON export, import parsing, validation and grouping
 assets/js/app.js         bootstrap, toolbar, title editing, shortcuts
 assets/vendor/           html-to-image 1.11.13 (MIT) for the PNG capture
 licenses/                ISC (Lucide), OFL (Inter) and MIT (html-to-image) texts

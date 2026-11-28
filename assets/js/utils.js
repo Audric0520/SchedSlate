@@ -17,6 +17,38 @@
         return (prefix || 't') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     }
 
+    /** "Fall Semester" → "fall-semester"; empty or non-latin → the fallback. */
+    function slugify(value, fallback) {
+        var slug = String(value == null ? '' : value)
+            .toLowerCase()
+            .replace(/['’‘"]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 64)
+            .replace(/-+$/g, '');
+        return slug || (fallback || 'schedule');
+    }
+
+    /** Hands a blob or data URL to the browser as a download. */
+    function download(href, filename, revoke) {
+        var link = document.createElement('a');
+        link.href = href;
+        link.download = filename;
+        link.rel = 'noopener';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+
+        global.setTimeout(function () {
+            if (link.parentNode) {
+                link.parentNode.removeChild(link);
+            }
+            if (revoke) {
+                URL.revokeObjectURL(href);
+            }
+        }, 4000);
+    }
+
     /* ------------------------------------------------------------- time */
 
     function normaliseMinutes(minutes) {
@@ -113,6 +145,8 @@
         MIN_PER_DAY: MIN_PER_DAY,
         clamp: clamp,
         uid: uid,
+        slugify: slugify,
+        download: download,
         normaliseMinutes: normaliseMinutes,
         formatTime: formatTime,
         formatAxisTime: formatAxisTime,
