@@ -85,14 +85,22 @@ contrast on their surfaces, and the accent stripe is built from solid colour seg
 The **Save** button in the toolbar renders the schedule to a PNG and downloads it straight to your
 device — PNG is the only export format.
 
-- The image contains the schedule header (date line, your title, the block/hour counts) plus the full
-  24-hour grid exactly as it looks now: weekend toggle, 12h/24h clock, compact density and every
-  **Theme Inspiration** card style are respected.
-- Rendering happens on an off-screen copy of the grid, so scroll position, sticky headers, hover
-  states, focus rings and toolbar chrome never leak into the picture, and the whole day is captured
-  instead of just the part that happened to be scrolled into view.
-- The capture runs at **2× pixel ratio** for crisp text on high-DPI screens, with the app's dark
-  background baked in (no transparency).
+- Only the schedule is captured. The image is rendered from a dedicated `#export-root` container that
+  holds the schedule header (date line, title, plain-text block/hour summary) and the timetable grid,
+  and nothing else: no top bar, no Add / Settings / Save buttons, no stat pills, no modals, toasts or
+  page margins. A `filter` callback drops anything chrome-related a second time.
+- Capturing happens on an off-screen stage (`position: fixed; left: -9999px`), so the page never
+  flickers while the image is built. The stage is removed as soon as the download fires, on success
+  and on failure alike.
+- The cloned grid is unclamped (`height: auto`, `max-height: none`, `overflow: visible`) and its sticky
+  headers flattened, so the whole **00:00 – 23:30** range and every active day render without being
+  cut off by the scroll viewport.
+- The canvas is a fixed **1280 px** desktop layout with **32 px** outer padding on a flat `#0F172A`
+  slate background, so exports from a phone or a narrow window look the same as from a wide monitor.
+- An `is-exporting` class on the canvas hides live markers (the "now" line), hover states, focus rings
+  and scrollbars during the capture.
+- Rendering is done with `html-to-image` at **2× pixel ratio**, so 30-minute rules, timestamps, Lucide
+  icons and every **Theme Inspiration** card style stay crisp when zoomed or printed.
 - The file is named after your schedule title: *My Schedule* → `my-schedule.png`, with `schedule.png`
   as the fallback for empty or non-latin titles.
 - While the image renders the button shows a spinner and *Rendering…*; a toast confirms
@@ -168,7 +176,7 @@ assets/js/i18n.js        en + de dictionaries, date/time formatting
 assets/js/store.js       state, validation, localStorage, sample data
 assets/js/grid.js        weekly timeline rendering and pointer gestures
 assets/js/modals.js      task modal, settings drawer, toasts
-assets/js/export.js      off-screen sheet build + PNG capture and download
+assets/js/export.js      isolated #export-root build, PNG capture and download
 assets/js/app.js         bootstrap, toolbar, title editing, shortcuts
 assets/vendor/           html-to-image 1.11.13 (MIT) for the PNG capture
 licenses/                ISC (Lucide), OFL (Inter) and MIT (html-to-image) texts

@@ -1,7 +1,10 @@
 /* SchedSlate — save the current schedule as a high-resolution PNG.
- *  Renders a clean, self-contained sheet (title + full grid) off-screen with
- *  html-to-image (vendored under assets/vendor) so scroll boundaries, hover
- *  states and toolbar chrome never reach the exported image. */
+ *
+ *  The capture never touches the app window: a dedicated #export-root container
+ *  (schedule header + timetable only) is rendered into an off-screen stage, the
+ *  grid scroll box is unclamped so the whole 00:00–23:30 day is included, and
+ *  html-to-image rasterises just that node at 2x. The stage is removed again as
+ *  soon as the download is triggered, so the page never flickers. */
 (function (global) {
     'use strict';
 
@@ -9,12 +12,23 @@
     var U = global.SSUtil;
     var I = global.SSI18n;
 
-    /* A 2x ratio keeps text crisp while staying inside the per-canvas limits
-       older Safari builds enforce (a 2x sheet is well under 16.7 megapixels). */
+    /* A fixed desktop layout keeps exports crisp and identical on phones: the
+       app only has the weekly view, so 1280px is the right canvas width. */
+    var EXPORT_WIDTH = 1280;
+    var EXPORT_BG = '#0f172a';
+    /* 2x is sharp on high-DPI screens and stays well inside the per-canvas
+       limits older Safari builds enforce. */
     var PIXEL_RATIO = 2;
-    var MIN_WIDTH = 1080;
-    var MAX_WIDTH = 1440;
     var running = false;
+
+    /* Nothing matching these ever belongs in the saved image. The container is
+       already built from the grid alone; this filter is a second safety net. */
+    var CHROME_SELECTORS = [
+        '.topbar', '.brand', '.topbar-actions', '.board-stats', '.stat',
+        '.btn', '.btn-save', '.icon-btn', '.hint-bar', '.board-foot',
+        '.toast', '.toasts', '.layer', '.modal', '.drawer', '.skip-link',
+        '.drag-ghost', '.now-line', '[data-export-hide]'
+    ];
 
     function t(key) {
         return I.t(key);
@@ -40,31 +54,45 @@
         return (slug || 'schedule') + '.png';
     }
 
-    function exportWidth() {
-        var panel = document.querySelector('.sched-panel') || document.getElementById('grid-root');
-        var width = panel ? panel.getBoundingClientRect().width : 0;
-        return Math.round(U.clamp(width || MIN_WIDTH, MIN_WIDTH, MAX_WIDTH));
+    /** Text-only summary ("17 blocks · 20.5 h planned") — no pill-shaped UI. */
+    function statsLine() {
+        var stats = document.getElementById('board-stats');
+        if (!stats) {
+            return '';
+        }
+        var parts = [];
+        U.each('.stat', stats).forEach(function (stat) {
+            var words = U.each('.stat-value, .stat-label', stat).map(function (node) {
+                return String(node.textContent || '').trim();
+            }).filter(Boolean);
+            var text = words.length ? words.join(' ') : String(stat.textContent || '').trim();
+            if (text) {
+                parts.push(text);
+            }
+        });
+        return parts.join(' · ');
     }
 
-    function headMarkup() {
+    function headNode() {
         var eyebrow = document.getElementById('eyebrow');
-        var stats = document.getElementById('board-stats');
-        return '' +
-            '<div class="export-head">' +
+        var head = document.createElement('header');
+        head.className = 'export-head';
+        head.innerHTML = '' +
             '<div class="export-titles">' +
             '<p class="export-eyebrow">' + U.esc(eyebrow ? eyebrow.textContent : '') + '</p>' +
             '<h1 class="export-title">' + U.esc(scheduleTitle() || I.t('defaultTitle')) + '</h1>' +
-            '</div>' +
-            '<div class="export-stats">' + (stats ? stats.innerHTML : '') + '</div>' +
+            '<p class="export-meta">' + U.esc(statsLine()) + '</p>' +
             '</div>';
+        return head;
     }
 
     /**
-     * The live grid scrolls inside .grid-scroll and pins its head/gutter with
-     * position: sticky. Both are neutralised on the clone so the PNG shows the
-     * whole 24-hour range and no scroll furniture.
+     * Unclamps the cloned grid: no scroll viewport, no sticky offsets, no
+     * ghosts, and no <button> cards (so no focus ring or UA chrome can appear).
      */
     function normaliseGrid(clone) {
+        clone.removeAttribute('id');
+
         U.each('.grid-scroll', clone).forEach(function (node) {
             node.style.height = 'auto';
             node.style.maxHeight = 'none';
@@ -85,8 +113,6 @@
             }
         });
 
-        /* Cards are <button>s in the live grid; swap them for inert divs so no UA
-           button chrome (or focus ring) can leak into the static image. */
         U.each('.task', clone).forEach(function (node) {
             var card = document.createElement('div');
             Array.prototype.forEach.call(node.attributes, function (attr) {
@@ -105,32 +131,31 @@
         return clone;
     }
 
-    /** Builds the off-screen capture sheet: header title + full expanded grid. */
-    function buildSheet() {
-        var panel = document.getElementById('grid-root');
-        if (!panel) {
+    /** Dedicated container: schedule header + full timetable, nothing else. */
+    function buildExportRoot() {
+        var grid = document.getElementById('grid-root');
+        if (!grid) {
             return null;
         }
 
-        var width = exportWidth();
-        var sheet = document.createElement('div');
-        sheet.className = 'export-sheet';
-        sheet.setAttribute('aria-hidden', 'true');
-        sheet.style.width = width + 'px';
-        sheet.innerHTML = headMarkup();
+        var root = document.createElement('div');
+        root.id = 'export-root';
+        root.className = 'export-canvas is-exporting';
+        root.setAttribute('role', 'presentation');
+        root.style.width = EXPORT_WIDTH + 'px';
 
-        var clone = panel.cloneNode(true);
-        clone.removeAttribute('id');
-        sheet.appendChild(normaliseGrid(clone));
-
-        return { sheet: sheet, width: width };
+        root.appendChild(headNode());
+        root.appendChild(normaliseGrid(grid.cloneNode(true)));
+        return root;
     }
 
-    function mount(sheet) {
+    /** Off-screen stage: `position: fixed` far to the left, no layout flicker. */
+    function mount(root) {
         var stage = document.createElement('div');
         stage.className = 'export-stage';
         stage.setAttribute('aria-hidden', 'true');
-        stage.appendChild(sheet);
+        stage.style.cssText = 'position:fixed;top:0;left:-9999px;z-index:-1;pointer-events:none;';
+        stage.appendChild(root);
         document.body.appendChild(stage);
         return stage;
     }
@@ -160,22 +185,34 @@
         });
     }
 
-    /** Natural height of the fully expanded sheet (never the clipped viewport). */
-    function sheetHeight(sheet) {
-        var rect = sheet.getBoundingClientRect();
-        var height = rect && rect.height ? rect.height : (sheet.offsetHeight || sheet.scrollHeight || 0);
+    /** Natural height of the fully expanded canvas (never the clipped viewport). */
+    function canvasHeight(root) {
+        var rect = root.getBoundingClientRect();
+        var height = rect && rect.height ? rect.height : (root.offsetHeight || root.scrollHeight || 0);
         return Math.max(1, Math.ceil(height));
     }
 
-    function background() {
-        var value = global.getComputedStyle(document.documentElement).getPropertyValue('--bg');
-        value = String(value || '').trim();
-        return value || '#080b13';
+    function captureOptions(root) {
+        return {
+            pixelRatio: PIXEL_RATIO,
+            backgroundColor: EXPORT_BG,
+            width: EXPORT_WIDTH,
+            height: canvasHeight(root),
+            cacheBust: false,
+            filter: function (node) {
+                if (!node || node.nodeType !== 1 || !node.matches) {
+                    return true;
+                }
+                return !CHROME_SELECTORS.some(function (selector) {
+                    return node.matches(selector);
+                });
+            }
+        };
     }
 
     /**
-     * Renders the sheet. Resolves with { blob } (preferred) or { dataUrl } so the
-     * caller can download without holding a multi-megabyte string around.
+     * Renders the isolated canvas. Resolves with { blob } (preferred) or
+     * { dataUrl }, and always tears the off-screen stage down again.
      */
     function render() {
         var lib = global.htmlToImage;
@@ -183,41 +220,45 @@
             return Promise.reject(new Error('html-to-image is not loaded'));
         }
 
-        var built = buildSheet();
-        if (!built) {
+        var root = buildExportRoot();
+        if (!root) {
             return Promise.reject(new Error('grid is not mounted'));
         }
 
-        var stage = mount(built.sheet);
+        var stage = null;
 
-        var options = {
-            pixelRatio: PIXEL_RATIO,
-            cacheBust: false,
-            backgroundColor: background(),
-            width: built.width,
-            height: sheetHeight(built.sheet)
-        };
+        try {
+            stage = mount(root);
+        } catch (error) {
+            unmount(stage);
+            return Promise.reject(error);
+        }
+
+        function cleanup() {
+            unmount(stage);
+        }
+
+        var options = captureOptions(root);
 
         return fontsReady()
             .then(nextFrame)
             .then(function () {
-                /* the sheet can reflow once webfonts land, so measure again */
-                options.height = sheetHeight(built.sheet);
-                return lib.toBlob(built.sheet, options);
-            })
-            .then(function (blob) {
-                if (blob) {
-                    return { blob: blob };
-                }
-                return lib.toPng(built.sheet, options).then(function (dataUrl) {
-                    return { dataUrl: dataUrl };
+                /* the canvas can reflow once webfonts land, so measure again */
+                options.height = canvasHeight(root);
+                return lib.toBlob(root, options).then(function (blob) {
+                    if (blob) {
+                        return { blob: blob };
+                    }
+                    return lib.toPng(root, options).then(function (dataUrl) {
+                        return { dataUrl: dataUrl };
+                    });
                 });
             })
             .then(function (result) {
-                unmount(stage);
+                cleanup();
                 return result;
             }, function (error) {
-                unmount(stage);
+                cleanup();
                 throw error;
             });
     }
@@ -317,7 +358,10 @@
             return running;
         },
         /* internals exposed for the jsdom suite */
-        _buildSheet: buildSheet,
-        _render: render
+        _buildRoot: buildExportRoot,
+        _render: render,
+        _chromeSelectors: CHROME_SELECTORS,
+        WIDTH: EXPORT_WIDTH,
+        PIXEL_RATIO: PIXEL_RATIO
     };
 })(window);
